@@ -6,9 +6,10 @@ import (
 	"encoding/hex"
 )
 
-const Header = "X-Request-ID"
-
-const maxLen = 64
+const (
+	Header = "X-Request-ID"
+	maxLen = 64
+)
 
 type ctxKey struct{}
 
@@ -33,7 +34,7 @@ func Valid(id string) bool {
 		return false
 	}
 	for _, c := range id {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' && c != '_' {
 			return false
 		}
 	}
