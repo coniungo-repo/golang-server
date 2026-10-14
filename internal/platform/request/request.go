@@ -5,63 +5,73 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 )
 
-// MaxBodyBytes limits the request size to 1MB to prevent memory exhaustion attacks.
+// MaxBodyBytes is the largest request body the API accepts.
 const MaxBodyBytes = 1 << 20
 
-// Decode decodes JSON from an HTTP request into a destination pointer.
-// It enforces body size limits and strict JSON parsing.
-func Decode(w http.ResponseWriter, r *http.Request, dst any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+// Error is a client mistake in the request body, with the status to answer with.
+type Error struct {
+	Status  int
+	Message string
+}
 
+func (e *Error) Error() string { return e.Message }
+
+func badRequest(format string, args ...any) *Error {
+	return &Error{Status: http.StatusBadRequest, Message: fmt.Sprintf(format, args...)}
+}
+
+// Decode reads a single JSON value into dst, rejecting unknown fields, trailing data, wrong media types and oversized bodies. Failures are *Error.
+func Decode(w http.ResponseWriter, r *http.Request, dst any) error {
+	if ct := r.Header.Get("Content-Type"); ct != "" {
+		mt, _, err := mime.ParseMediaType(ct)
+		if err != nil || mt != "application/json" {
+			return &Error{Status: http.StatusUnsupportedMediaType, Message: "body must be application/json"}
+		}
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(dst); err != nil {
-		var syntaxError *json.SyntaxError
-		var unmarshalTypeError *json.UnmarshalTypeError
-		var maxBytesError *http.MaxBytesError
-
-		switch {
-		case errors.As(err, &syntaxError):
-			return fmt.Errorf("body contains badly-formed JSON (at character %d)", syntaxError.Offset)
-
-		case errors.Is(err, io.ErrUnexpectedEOF):
-			return errors.New("body contains badly-formed JSON")
-
-		case errors.As(err, &unmarshalTypeError):
-			if unmarshalTypeError.Field != "" {
-				return fmt.Errorf("body contains incorrect JSON type for field %q", unmarshalTypeError.Field)
-			}
-			return fmt.Errorf("body contains incorrect JSON type (at character %d)", unmarshalTypeError.Offset)
-
-		case errors.Is(err, io.EOF):
-			return errors.New("body must not be empty")
-
-		case strings.HasPrefix(err.Error(), "json: unknown field "):
-			fieldName := strings.TrimPrefix(err.Error(), "json: unknown field ")
-			return fmt.Errorf("body contains unknown key %s", fieldName)
-
-		case errors.As(err, &maxBytesError):
-			return fmt.Errorf("body must not be larger than %d bytes", MaxBodyBytes)
-
-		case strings.HasPrefix(err.Error(), "json: Unmarshal(non-pointer"):
-			panic(err)
-
-		default:
-			return err
-		}
+		return decodeError(err)
 	}
-
-	// Ensure the body only contains a single JSON object.
-	// If there's more data, the user is likely sending multiple objects (not allowed).
-	err := dec.Decode(&struct{}{})
-	if !errors.Is(err, io.EOF) {
-		return errors.New("body must only contain a single JSON value")
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return badRequest("body must only contain a single JSON value")
 	}
-
 	return nil
+}
+
+func decodeError(err error) error {
+	var syntaxErr *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	var maxErr *http.MaxBytesError
+	var invalidErr *json.InvalidUnmarshalError
+
+	switch {
+	case errors.As(err, &invalidErr):
+		panic(err)
+	case errors.As(err, &syntaxErr):
+		return badRequest("body contains badly-formed JSON (at character %d)", syntaxErr.Offset)
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return badRequest("body contains badly-formed JSON")
+	case errors.As(err, &typeErr):
+		if typeErr.Field != "" {
+			return badRequest("body contains the wrong type for field %q", typeErr.Field)
+		}
+		return badRequest("body contains the wrong JSON type (at character %d)", typeErr.Offset)
+	case errors.Is(err, io.EOF):
+		return badRequest("body must not be empty")
+	case strings.HasPrefix(err.Error(), "json: unknown field "):
+		return badRequest("body contains unknown key %s", strings.TrimPrefix(err.Error(), "json: unknown field "))
+	case errors.As(err, &maxErr):
+		return &Error{Status: http.StatusRequestEntityTooLarge, Message: fmt.Sprintf("body must not be larger than %d bytes", MaxBodyBytes)}
+	default:
+		return err
+	}
 }

@@ -1,73 +1,62 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 
-	"github.com/coniungo-repo/golang-server.git/internal/platform/respond"
+	"github.com/coniungo-repo/golang-server/internal/platform/respond"
 )
 
 const (
-	corsMethods          = "GET, POST, PUT, PATCH, DELETE"
+	corsMethods          = "GET, HEAD, POST, PUT, PATCH, DELETE"
+	corsMaxAge           = "600"
 	exposeHeaders        = "X-Request-ID, Retry-After, Idempotent-Replayed, Location"
 	foreignOriginMessage = "That came from a site we don't know. Please open the official app and try again."
 )
 
-// unsafe returns true for methods that can change state.
-func unsafe(method string) bool {
-	switch method {
-	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		return false
+// CORS lets the listed origins make credentialed calls and rejects cross-origin state-changing requests from anywhere else, using Origin and Sec-Fetch-Site.
+func CORS(origins, allowHeaders []string) (Middleware, error) {
+	csrf := http.NewCrossOriginProtection()
+	for _, o := range origins {
+		if err := csrf.AddTrustedOrigin(o); err != nil {
+			return nil, fmt.Errorf("cors origin %q: %w", o, err)
+		}
 	}
-	return true
-}
-
-// CORS provides a strict Cross-Origin Resource Sharing policy.
-// It allows the listed origins to make credentialed calls.
-// It also acts as a CSRF defense by blocking unsafe methods from unknown origins.
-func CORS(origins []string, allowHeaders []string) Middleware {
+	csrf.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		respond.Error(w, r, http.StatusForbidden, foreignOriginMessage)
+	}))
 	joinedAllowHeaders := strings.Join(allowHeaders, ", ")
 
 	return func(next http.Handler) http.Handler {
+		protected := csrf.Handler(next)
+
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add("Vary", "Origin")
+			h := w.Header()
+			h.Add("Vary", "Origin")
+
 			origin := r.Header.Get("Origin")
-			if origin == "" {
-				// Requests with no Origin (like system-to-system or webhooks) pass through.
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			allowed := slices.Contains(origins, origin)
-
+			allowed := origin != "" && slices.Contains(origins, origin)
 			if allowed {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-				w.Header().Set("Access-Control-Expose-Headers", exposeHeaders)
+				h.Set("Access-Control-Allow-Origin", origin)
+				h.Set("Access-Control-Allow-Credentials", "true")
+				h.Set("Access-Control-Expose-Headers", exposeHeaders)
 			}
 
-			// CSRF Protection: If the origin is not allowed and the method is "unsafe"
-			// (POST/PUT/etc), we block it even if it's not a preflight.
-			if !allowed && unsafe(r.Method) {
-				respond.Error(w, r, http.StatusForbidden, foreignOriginMessage)
-				return
-			}
-
-			// Handle Preflight (OPTIONS)
 			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+				h.Add("Vary", "Access-Control-Request-Method")
+				h.Add("Vary", "Access-Control-Request-Headers")
 				if allowed {
-					w.Header().Add("Vary", "Access-Control-Request-Method")
-					w.Header().Add("Vary", "Access-Control-Request-Headers")
-					w.Header().Set("Access-Control-Allow-Methods", corsMethods)
-					w.Header().Set("Access-Control-Allow-Headers", joinedAllowHeaders)
-					w.Header().Set("Access-Control-Max-Age", "600")
+					h.Set("Access-Control-Allow-Methods", corsMethods)
+					h.Set("Access-Control-Allow-Headers", joinedAllowHeaders)
+					h.Set("Access-Control-Max-Age", corsMaxAge)
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
 
-			next.ServeHTTP(w, r)
+			protected.ServeHTTP(w, r)
 		})
-	}
+	}, nil
 }

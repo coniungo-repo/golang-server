@@ -1,52 +1,30 @@
 package middleware
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"net/http"
 
-	"github.com/coniungo-repo/golang-server.git/internal/platform/logger"
-	"github.com/coniungo-repo/golang-server.git/internal/platform/respond"
+	"github.com/coniungo-repo/golang-server/internal/platform/logger"
+	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
 )
 
-func RequestID(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := incomingID(r)
+// RequestID tags each request with an ID. trustedHeader names a header set by a proxy you control; leave it empty to always generate one.
+func RequestID(trustedHeader string) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id := ""
+			if trustedHeader != "" {
+				if v := r.Header.Get(trustedHeader); requestid.Valid(v) {
+					id = v
+				}
+			}
+			if id == "" {
+				id = requestid.New()
+			}
 
-		if id == "" {
-			id = newID()
-		}
-
-		w.Header().Set(respond.RequestIDHeader, id)
-		l := logger.From(r.Context()).With("request_id", id)
-		ctx := logger.Into(r.Context(), l)
-		ctx, _ = withRoute(ctx)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func incomingID(r *http.Request) string {
-	if id := r.Header.Get("Fly-Request-Id"); safeID(id) {
-		return id
+			w.Header().Set(requestid.Header, id)
+			ctx := requestid.Into(r.Context(), id)
+			ctx = logger.Into(ctx, logger.From(ctx).With("request_id", id))
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	}
-	return ""
-}
-
-func safeID(id string) bool {
-	if id == "" || len(id) > 64 {
-		return false
-	}
-	for _, c := range id {
-		ok := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_'
-		if !ok {
-			return false
-		}
-	}
-	return true
-}
-
-func newID() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return "req_" + hex.EncodeToString(b)
 }

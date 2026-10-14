@@ -2,31 +2,28 @@ package route
 
 import (
 	"net/http"
-	"sync"
+	"strings"
 )
 
 type Mux interface {
 	Handle(pattern string, handler http.Handler)
 }
 
-type Recorder struct {
-	mux      Mux
-	mu       sync.Mutex
-	patterns []string
+type prefixed struct {
+	mux    Mux
+	prefix string
 }
 
-func NewRecorder(m Mux) *Recorder { return &Recorder{mux: m} }
-
-func (r *Recorder) Handle(pattern string, h http.Handler) {
-	r.mu.Lock()
-	r.patterns = append(r.patterns, pattern)
-	r.mu.Unlock()
-
-	r.mux.Handle(pattern, h)
+// Prefix returns a Mux that registers every pattern under prefix, keeping any method, e.g. "GET /things" becomes "GET /api/v1/things".
+func Prefix(mux Mux, prefix string) Mux {
+	return prefixed{mux: mux, prefix: strings.TrimSuffix(prefix, "/")}
 }
 
-func (r *Recorder) Patterns() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]string(nil), r.patterns...)
+func (p prefixed) Handle(pattern string, h http.Handler) {
+	method, path, ok := strings.Cut(pattern, " ")
+	if !ok {
+		p.mux.Handle(p.prefix+pattern, h)
+		return
+	}
+	p.mux.Handle(method+" "+p.prefix+strings.TrimSpace(path), h)
 }

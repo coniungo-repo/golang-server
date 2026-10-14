@@ -8,23 +8,26 @@ import (
 
 const redactedValue = "[redacted]"
 
-// Pre-compute sensitive keys for O(1) lookup
-var sensitiveKeys = map[string]struct{}{
-	"cookie":        {},
-	"authorization": {},
-	"set-cookie":    {},
-	"password":      {},
-	"token":         {},
-	"api_key":       {},
-	"secret":        {},
+var sensitiveFragments = []string{
+	"authorization",
+	"cookie",
+	"password",
+	"passwd",
+	"secret",
+	"token",
+	"api_key",
+	"apikey",
+	"private_key",
+	"dsn",
+	"database_url",
 }
 
-// Options allows the logger to be configured without depending on the config package
 type Options struct {
 	Level        slog.Level
 	IsProduction bool
 	ServiceName  string
 	Environment  string
+	Version      string
 }
 
 func New(w io.Writer, opts Options) *slog.Logger {
@@ -44,15 +47,27 @@ func New(w io.Writer, opts Options) *slog.Logger {
 	return slog.New(h).With(
 		slog.String("service", opts.ServiceName),
 		slog.String("env", opts.Environment),
+		slog.String("version", opts.Version),
 	)
 }
 
 func redact(_ []string, a slog.Attr) slog.Attr {
-	// Only check if it's a string or sensitive key
-	// We lowercase the key for comparison to catch "Cookie", "COOKIE", etc.
-	if _, ok := sensitiveKeys[strings.ToLower(a.Key)]; ok {
+	if a.Value.Kind() == slog.KindGroup {
+		return a
+	}
+	if Sensitive(a.Key) {
 		return slog.String(a.Key, redactedValue)
 	}
-
 	return a
+}
+
+// Sensitive reports whether a log key looks like it holds a credential.
+func Sensitive(key string) bool {
+	k := strings.ToLower(key)
+	for _, f := range sensitiveFragments {
+		if strings.Contains(k, f) {
+			return true
+		}
+	}
+	return false
 }

@@ -1,16 +1,20 @@
 package respond
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
-	"github.com/coniungo-repo/golang-server.git/internal/platform/logger"
+	"github.com/coniungo-repo/golang-server/internal/platform/logger"
+	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
 )
 
 const (
-	RequestIDHeader    = "X-Request-ID"
-	ServerErrorMessage = "Something went wrong on our side. Try again in a moment."
-	ContentTypeJSON    = "application/json; charset=utf-8"
+	ContentTypeJSON           = "application/json; charset=utf-8"
+	ServerErrorMessage        = "Something went wrong on our side. Try again in a moment."
+	TimeoutMessage            = "That took too long. Try again in a moment."
+	StatusClientClosedRequest = 499
 )
 
 type errorBody struct {
@@ -18,16 +22,13 @@ type errorBody struct {
 	RequestID string `json:"request_id,omitempty"`
 }
 
-// JSON writes a Go value to the response stream as JSON.
+// JSON encodes v before writing headers, so an encoding failure becomes a clean 500.
 func JSON(w http.ResponseWriter, r *http.Request, status int, v any) {
-	if status == http.StatusNoContent {
+	if status == http.StatusNoContent || status == http.StatusNotModified {
 		w.WriteHeader(status)
 		return
 	}
 
-	// Marshal the JSON first to a byte slice.
-	// This prevents "Partial Writes" where we send a 200 OK but then
-	// the JSON encoding fails, resulting in a broken response.
 	buf, err := json.Marshal(v)
 	if err != nil {
 		ServerError(w, r, err)
@@ -39,25 +40,27 @@ func JSON(w http.ResponseWriter, r *http.Request, status int, v any) {
 	_, _ = w.Write(buf)
 }
 
-// Error sends a JSON-formatted error message to the client.
 func Error(w http.ResponseWriter, r *http.Request, status int, message string) {
-	requestID := r.Header.Get(RequestIDHeader)
-
 	JSON(w, r, status, errorBody{
 		Message:   message,
-		RequestID: requestID,
+		RequestID: requestid.From(r.Context()),
 	})
 }
 
-// ServerError handles internal failures (500) by logging the real error
-// and sending a safe, generic message to the client.
+// ServerError logs err and sends a generic message. Deadlines become 503 and client disconnects are not treated as failures.
 func ServerError(w http.ResponseWriter, r *http.Request, err error) {
-	logger.From(r.Context()).Error("server error", "err", err)
+	log := logger.From(r.Context())
 
-	Error(w, r, http.StatusInternalServerError, ServerErrorMessage)
-}
-
-// Status sends a response with just a status code and no body.
-func Status(w http.ResponseWriter, status int) {
-	w.WriteHeader(status)
+	switch {
+	case errors.Is(err, context.Canceled) && r.Context().Err() != nil:
+		log.Info("client closed request", "err", err)
+		w.WriteHeader(StatusClientClosedRequest)
+	case errors.Is(err, context.DeadlineExceeded):
+		log.Warn("request timed out", "err", err)
+		w.Header().Set("Retry-After", "1")
+		Error(w, r, http.StatusServiceUnavailable, TimeoutMessage)
+	default:
+		log.Error("server error", "err", err)
+		Error(w, r, http.StatusInternalServerError, ServerErrorMessage)
+	}
 }

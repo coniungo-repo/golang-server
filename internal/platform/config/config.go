@@ -21,6 +21,7 @@ type Config struct {
 	Log      Log
 	Database Database
 	CORS     CORS
+	Security Security
 }
 
 type App struct {
@@ -39,7 +40,9 @@ type Server struct {
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
 	ShutdownTimeout   time.Duration
+	DrainDelay        time.Duration
 	RequestTimeout    time.Duration
+	RequestIDHeader   string
 }
 
 func (s Server) Addr() string {
@@ -47,10 +50,10 @@ func (s Server) Addr() string {
 }
 
 type Database struct {
-	URL          Secret
-	MaxOpenConns int
-	MaxIdleConns int
-	ConnMaxIdle  time.Duration
+	URL         Secret
+	MaxConns    int32
+	MinConns    int32
+	ConnMaxIdle time.Duration
 }
 
 type Log struct {
@@ -59,4 +62,8 @@ type Log struct {
 
 type CORS struct {
 	AllowedOrigins []string
+}
+
+type Security struct {
+	FingerprintSecret Secret
 }

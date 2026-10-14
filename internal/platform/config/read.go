@@ -47,17 +47,17 @@ func (r *reader) int(key string, fallback int) int {
 	return n
 }
 
-func (r *reader) bool(key string, fallback bool) bool {
+func (r *reader) int32(key string, fallback, lo, hi int32) int32 {
 	v := r.raw(key)
 	if v == "" {
 		return fallback
 	}
-	b, err := strconv.ParseBool(v)
-	if err != nil {
-		r.fail(key, "%q is not a valid boolean (use true/false, 1/0, t/f)", v)
+	n, err := strconv.ParseInt(v, 10, 32)
+	if err != nil || int32(n) < lo || int32(n) > hi {
+		r.fail(key, "%q must be an integer between %d and %d", v, lo, hi)
 		return fallback
 	}
-	return b
+	return int32(n)
 }
 
 func (r *reader) duration(key string, fallback time.Duration) time.Duration {
@@ -67,7 +67,20 @@ func (r *reader) duration(key string, fallback time.Duration) time.Duration {
 	}
 	d, err := time.ParseDuration(v)
 	if err != nil || d <= 0 {
-		r.fail(key, "%q is not a valid duration (e.g., '15s', '2h')", v)
+		r.fail(key, "%q is not a valid positive duration (e.g. 15s, 2m)", v)
+		return fallback
+	}
+	return d
+}
+
+func (r *reader) durationOrZero(key string, fallback time.Duration) time.Duration {
+	v := r.raw(key)
+	if v == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d < 0 {
+		r.fail(key, "%q is not a valid duration (e.g. 0s, 5s)", v)
 		return fallback
 	}
 	return d
@@ -92,7 +105,6 @@ func (r *reader) logLevel(key string, fallback slog.Level) slog.Level {
 	if v == "" {
 		return fallback
 	}
-
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(strings.ToLower(v))); err != nil {
 		r.fail(key, "%q is not a valid log level (debug, info, warn, error)", v)

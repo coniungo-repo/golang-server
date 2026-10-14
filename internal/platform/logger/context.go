@@ -7,7 +7,6 @@ import (
 
 type ctxKey struct{}
 
-// Into returns a context carrying l, so a request's logger (with its request ID) follows it through calls.
 func Into(ctx context.Context, l *slog.Logger) context.Context {
 	return context.WithValue(ctx, ctxKey{}, l)
 }
