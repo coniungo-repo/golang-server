@@ -1,0 +1,38 @@
+# Build output
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test output
+*.test
+*.out
+coverage.*
+*.coverprofile
+
+# Local settings and secrets (.env.example stays committed)
+.env
+.env.*
+!.env.example
+
+# Go workspace files, for local multi-module work
+go.work
+go.work.sum
+
+# Live-reload and scratch folders
+tmp/
+
+# Local data from Docker Compose, if mounted into the repo
+deploy/data/
+
+# Logs
+*.log
+
+# Editors and OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
