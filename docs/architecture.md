@@ -13,6 +13,8 @@ Every request passes through one middleware chain, in this order:
 7. **MaxBytes**: 1 MiB body limit
 8. **Timeout**: request context deadline
 
+The SuperTokens middleware sits inside the chain and serves `/auth/*`. Everything else falls through to the router.
+
 Unknown paths return a JSON 404. Known paths with the wrong method return a JSON 405 with `Allow`.
 
 ## Adding an endpoint
@@ -55,6 +57,10 @@ store(n.E164())
 | `platform/database` | pgx pool with startup ping |
 | `platform/httpserver` | Server lifecycle and graceful shutdown |
 | `platform/middleware` | The chain above |
+| `auth` | SuperTokens passwordless and sessions, code delivery, rate limiting. See [auth](auth.md) |
+| `store` | sqlc-generated queries |
+| `platform/email` | Email `Sender` interface, address normalisation, log provider |
+| `platform/sms` | SMS `Sender` interface, log provider |
 | `platform/phone` | Phone number parsing, policy and masking |
 | `platform/request` | Strict JSON decoding |
 | `platform/respond` | JSON responses and error mapping |

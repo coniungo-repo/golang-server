@@ -21,6 +21,8 @@ type Config struct {
 	Log      Log
 	Database Database
 	CORS     CORS
+	Auth     Auth
+	Delivery Delivery
 	Security Security
 	Phone    Phone
 }
@@ -44,6 +46,7 @@ type Server struct {
 	DrainDelay        time.Duration
 	RequestTimeout    time.Duration
 	RequestIDHeader   string
+	ClientIPHeader    string
 }
 
 func (s Server) Addr() string {
@@ -55,6 +58,16 @@ type Database struct {
 	MaxConns    int32
 	MinConns    int32
 	ConnMaxIdle time.Duration
+}
+
+type Auth struct {
+	ConnectionURI   string
+	APIKey          Secret
+	AppName         string
+	APIDomain       string
+	APIBasePath     string
+	WebsiteDomains  []string
+	WebsiteBasePath string
 }
 
 type Log struct {
@@ -72,4 +85,13 @@ type Security struct {
 type Phone struct {
 	DefaultRegion  string
 	AllowedRegions []string
+}
+
+const ProviderLog = "log"
+
+type Delivery struct {
+	EmailProvider string
+	EmailFrom     string
+	SMSProvider   string
+	SMSSender     string
 }

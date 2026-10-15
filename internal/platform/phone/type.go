@@ -1,6 +1,6 @@
 package phone
 
-import "github.com/nyaruka/phonenumbers/v2"
+import "github.com/nyaruka/phonenumbers"
 
 type Type int
 

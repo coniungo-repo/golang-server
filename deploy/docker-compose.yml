@@ -7,15 +7,39 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      SUPERTOKENS_DB_USER: ${SUPERTOKENS_DB_USER:?set SUPERTOKENS_DB_USER in .env}
+      SUPERTOKENS_DB_PASSWORD: ${SUPERTOKENS_DB_PASSWORD:?set SUPERTOKENS_DB_PASSWORD in .env}
+      SUPERTOKENS_DB_NAME: ${SUPERTOKENS_DB_NAME:?set SUPERTOKENS_DB_NAME in .env}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres:/var/lib/postgresql/data
+      - ./postgres/init-supertokens.sh:/docker-entrypoint-initdb.d/10-supertokens.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 2s
       timeout: 3s
       retries: 15
+
+  supertokens:
+    image: registry.supertokens.io/supertokens/supertokens-postgresql:12.2.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      POSTGRESQL_CONNECTION_URI: postgresql://${SUPERTOKENS_DB_USER}:${SUPERTOKENS_DB_PASSWORD}@postgres:5432/${SUPERTOKENS_DB_NAME}
+      API_KEYS: ${SUPERTOKENS_API_KEY:?set SUPERTOKENS_API_KEY in .env}
+      PASSWORDLESS_CODE_LIFETIME: "600000"
+      PASSWORDLESS_MAX_CODE_INPUT_ATTEMPTS: "5"
+    ports:
+      - "127.0.0.1:3567:3567"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && printf \"GET /hello HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q Hello <&3'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
 volumes:
   postgres:

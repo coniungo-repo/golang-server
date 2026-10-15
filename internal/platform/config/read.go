@@ -30,6 +30,15 @@ func (r *reader) string(key, fallback string) string {
 	return fallback
 }
 
+func (r *reader) path(key, fallback string) string {
+	v := r.string(key, fallback)
+	if !strings.HasPrefix(v, "/") || strings.ContainsAny(v, "?# ") || (len(v) > 1 && strings.HasSuffix(v, "/")) || strings.Contains(v, "//") {
+		r.fail(key, "%q must start with / and have no trailing slash, query or spaces", v)
+		return fallback
+	}
+	return v
+}
+
 func (r *reader) secret(key string) Secret {
 	return Secret(r.raw(key))
 }
