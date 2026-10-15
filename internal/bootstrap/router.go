@@ -27,16 +27,25 @@ func newRouter(deps *dependencies) (http.Handler, error) {
 	deps.Health.Register(mux)
 	registerAPI(route.Prefix(mux, apiPrefix), deps)
 
-	cors, err := middleware.CORS(deps.Config.CORS.AllowedOrigins, corsAllowHeaders)
+	handler := fallback(mux)
+	allowHeaders := corsAllowHeaders
+	var authPrefixes []string
+	if deps.Auth != nil {
+		handler = deps.Auth.Middleware(handler)
+		allowHeaders = mergeHeaders(corsAllowHeaders, deps.Auth.CORSHeaders())
+		authPrefixes = append(authPrefixes, deps.Config.Auth.APIBasePath)
+	}
+
+	cors, err := middleware.CORS(deps.Config.CORS.AllowedOrigins, allowHeaders)
 	if err != nil {
 		return nil, err
 	}
 
 	return middleware.Chain(
-		fallback(mux),
+		handler,
 		middleware.RequestID(deps.Config.Server.RequestIDHeader),
 		middleware.Log,
-		middleware.Routes(mux),
+		middleware.Routes(mux, authPrefixes...),
 		middleware.Recover,
 		middleware.SecureHeaders(deps.Config.App.IsProduction()),
 		cors,
@@ -45,7 +54,26 @@ func newRouter(deps *dependencies) (http.Handler, error) {
 	), nil
 }
 
-func registerAPI(mux route.Mux, deps *dependencies) {}
+func registerAPI(mux route.Mux, deps *dependencies) {
+	if deps.Auth != nil {
+		deps.Auth.Register(mux)
+	}
+}
+
+func mergeHeaders(sets ...[]string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, set := range sets {
+		for _, h := range set {
+			key := http.CanonicalHeaderKey(h)
+			if !seen[key] {
+				seen[key] = true
+				out = append(out, h)
+			}
+		}
+	}
+	return out
+}
 
 // fallback serves mux, answering unknown paths with a JSON 404 and known paths with the wrong method with a JSON 405.
 func fallback(mux *http.ServeMux) http.Handler {

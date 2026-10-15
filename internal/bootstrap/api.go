@@ -3,11 +3,14 @@ package bootstrap
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/httpserver"
 	"github.com/coniungo-repo/golang-server/internal/platform/logger"
 )
+
+const pruneInterval = time.Hour
 
 func RunAPI(ctx context.Context) error {
 	cfg, err := config.Load()
@@ -29,6 +32,10 @@ func RunAPI(ctx context.Context) error {
 		return err
 	}
 	defer deps.close()
+
+	go deps.Limiter.RunPruner(ctx, pruneInterval, func(err error) {
+		log.Warn("pruning sign-in attempts failed", "err", err)
+	})
 
 	handler, err := newRouter(deps)
 	if err != nil {
