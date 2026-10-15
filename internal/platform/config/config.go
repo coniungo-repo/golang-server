@@ -3,6 +3,7 @@ package config
 import (
 	"log/slog"
 	"net"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -68,6 +69,28 @@ type Auth struct {
 	APIBasePath     string
 	WebsiteDomains  []string
 	WebsiteBasePath string
+	RateLimits      RateLimits
+}
+
+// RateWindow allows Limit attempts in any rolling Period.
+type RateWindow struct {
+	Limit  int64
+	Period time.Duration
+}
+
+// RateLimits caps sign-in code sends. Every window applies; the strictest one wins.
+type RateLimits struct {
+	Destination []RateWindow
+	ClientIP    []RateWindow
+}
+
+// Retention is the longest window, which is how long attempts must be kept.
+func (l RateLimits) Retention() time.Duration {
+	var longest time.Duration
+	for _, w := range append(slices.Clone(l.Destination), l.ClientIP...) {
+		longest = max(longest, w.Period)
+	}
+	return longest
 }
 
 type Log struct {

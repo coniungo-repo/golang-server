@@ -49,14 +49,14 @@ func listOrders(w http.ResponseWriter, r *http.Request) {
 
 ## Rate limits
 
-Code sends (create and resend) are limited per destination and per client IP:
+Code sends (create and resend) are limited per destination and per client IP. Every window applies, and a send is refused if any is full:
 
-| Key | Limit |
-| --- | --- |
-| Email or phone | 5 per 15 minutes, 15 per day |
-| Client IP | 30 per hour, 100 per day |
+| Key | Setting | Default |
+| --- | --- | --- |
+| Email or phone | `AUTH_RATE_LIMIT_DESTINATION` | `5/15m,15/24h` |
+| Client IP | `AUTH_RATE_LIMIT_CLIENT_IP` | `30/1h,100/24h` |
 
-Counts live in `sign_in_attempts`, keyed by an HMAC with `FINGERPRINT_SECRET`, so raw emails, phones and IPs are never stored. Rows older than a day are pruned hourly. Set `HTTP_CLIENT_IP_HEADER` behind a proxy, or every user shares the proxy's IP.
+Counts live in `sign_in_attempts`, keyed by an HMAC with `FINGERPRINT_SECRET`, so raw emails, phones and IPs are never stored. Rows older than the longest window are pruned hourly. Set `HTTP_CLIENT_IP_HEADER` behind a proxy, or every user shares the proxy's IP.
 
 The core separately locks a code after 5 wrong attempts, and codes expire after 10 minutes (`PASSWORDLESS_CODE_LIFETIME`, `PASSWORDLESS_MAX_CODE_INPUT_ATTEMPTS`).
 

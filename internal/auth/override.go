@@ -95,7 +95,7 @@ func contactKey(emailAddr, phoneNumber *string) (string, error) {
 
 func (s *Service) allowSend(r *http.Request, destination string) (bool, error) {
 	return s.deps.Limiter.Allow(r.Context(),
-		Attempt{Policy: clientPolicy, Value: request.ClientIP(r, s.deps.ClientIPHeader)},
-		Attempt{Policy: destinationPolicy, Value: destination},
+		Attempt{Policy: s.clientPolicy, Value: request.ClientIP(r, s.deps.ClientIPHeader)},
+		Attempt{Policy: s.destinationPolicy, Value: destination},
 	)
 }

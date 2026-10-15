@@ -29,14 +29,24 @@ type Deps struct {
 
 // Service is the initialised auth layer. SuperTokens keeps global state, so create one per process.
 type Service struct {
-	deps Deps
+	deps              Deps
+	destinationPolicy Policy
+	clientPolicy      Policy
 }
 
 func New(d Deps) (*Service, error) {
 	if d.Phones == nil || d.Email == nil || d.SMS == nil || d.Limiter == nil || d.Log == nil {
 		return nil, errors.New("auth: Phones, Email, SMS, Limiter and Log are required")
 	}
-	s := &Service{deps: d}
+	limits := d.Config.RateLimits
+	if len(limits.Destination) == 0 || len(limits.ClientIP) == 0 {
+		return nil, errors.New("auth: destination and client IP rate limits are required")
+	}
+	s := &Service{
+		deps:              d,
+		destinationPolicy: Policy{Kind: kindDestination, Windows: limits.Destination},
+		clientPolicy:      Policy{Kind: kindClientIP, Windows: limits.ClientIP},
+	}
 
 	telemetry := false
 	err := supertokens.Init(supertokens.TypeInput{
