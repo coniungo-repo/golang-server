@@ -22,6 +22,11 @@ const (
 	placeholderPrefix    = "change-me"
 )
 
+var (
+	defaultDestinationLimits = []RateWindow{{Limit: 5, Period: 15 * time.Minute}, {Limit: 15, Period: 24 * time.Hour}}
+	defaultClientIPLimits    = []RateWindow{{Limit: 30, Period: time.Hour}, {Limit: 100, Period: 24 * time.Hour}}
+)
+
 var localWebsiteDomains = []string{
 	"http://localhost:4321",
 	"http://localhost:5173",
@@ -80,6 +85,10 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			APIBasePath:     r.path("SUPERTOKENS_API_BASE_PATH", "/auth"),
 			WebsiteDomains:  r.list("SUPERTOKENS_WEBSITE_DOMAINS", localList(local, localWebsiteDomains...)),
 			WebsiteBasePath: r.path("SUPERTOKENS_WEBSITE_BASE_PATH", "/auth"),
+			RateLimits: RateLimits{
+				Destination: r.rateWindows("AUTH_RATE_LIMIT_DESTINATION", defaultDestinationLimits),
+				ClientIP:    r.rateWindows("AUTH_RATE_LIMIT_CLIENT_IP", defaultClientIPLimits),
+			},
 		},
 		Delivery: Delivery{
 			EmailProvider: r.string("EMAIL_PROVIDER", ProviderLog),

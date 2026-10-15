@@ -55,6 +55,9 @@ All configuration comes from environment variables. The server validates everyth
 | `SUPERTOKENS_WEBSITE_DOMAINS` | local apps outside production | Comma-separated frontend origins. Each must also be in `CORS_ALLOWED_ORIGINS`. https in production |
 | `SUPERTOKENS_WEBSITE_BASE_PATH` | `/auth` | Frontend auth route |
 
+| `AUTH_RATE_LIMIT_DESTINATION` | `5/15m,15/24h` | Code sends per email or phone, as `limit/period` pairs. Up to 4 windows, each 1s to 168h |
+| `AUTH_RATE_LIMIT_CLIENT_IP` | `30/1h,100/24h` | Code sends per client IP, same format |
+
 Local Docker Compose also reads `SUPERTOKENS_DB_USER`, `SUPERTOKENS_DB_PASSWORD` and `SUPERTOKENS_DB_NAME` to create the core's database. The API never uses them.
 
 ## Delivery

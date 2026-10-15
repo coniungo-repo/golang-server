@@ -11,20 +11,16 @@ import (
 	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
+	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/store"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Window struct {
-	Limit  int64
-	Period time.Duration
-}
-
 // Policy caps attempts per value. Kind namespaces the fingerprints, so the same value under two policies never collides.
 type Policy struct {
 	Kind    string
-	Windows []Window
+	Windows []config.RateWindow
 }
 
 type Attempt struct {
@@ -32,27 +28,22 @@ type Attempt struct {
 	Value  string
 }
 
-var (
-	destinationPolicy = Policy{Kind: "destination", Windows: []Window{
-		{Limit: 5, Period: 15 * time.Minute},
-		{Limit: 15, Period: 24 * time.Hour},
-	}}
-	clientPolicy = Policy{Kind: "client_ip", Windows: []Window{
-		{Limit: 30, Period: time.Hour},
-		{Limit: 100, Period: 24 * time.Hour},
-	}}
-	retention = 24 * time.Hour
+const (
+	kindDestination = "destination"
+	kindClientIP    = "client_ip"
 )
 
 // Limiter counts sign-in code sends in Postgres, keyed by an HMAC so raw emails, phones and IPs are never stored.
 type Limiter struct {
-	db     *pgxpool.Pool
-	secret []byte
-	clock  clock.Clock
+	db        *pgxpool.Pool
+	secret    []byte
+	clock     clock.Clock
+	retention time.Duration
 }
 
-func NewLimiter(db *pgxpool.Pool, secret string, c clock.Clock) *Limiter {
-	return &Limiter{db: db, secret: []byte(secret), clock: c}
+// NewLimiter keeps attempts for retention, which must cover the longest window of any policy used with it.
+func NewLimiter(db *pgxpool.Pool, secret string, c clock.Clock, retention time.Duration) *Limiter {
+	return &Limiter{db: db, secret: []byte(secret), clock: c, retention: retention}
 }
 
 // Allow records the attempts and returns true only if every one is under all of its windows. Nothing is recorded when it returns false.
@@ -107,7 +98,7 @@ func (l *Limiter) Allow(ctx context.Context, attempts ...Attempt) (bool, error) 
 
 // Prune deletes attempts older than the longest window.
 func (l *Limiter) Prune(ctx context.Context) (int64, error) {
-	return store.New(l.db).DeleteSignInAttemptsBefore(ctx, l.clock.Now().Add(-retention))
+	return store.New(l.db).DeleteSignInAttemptsBefore(ctx, l.clock.Now().Add(-l.retention))
 }
 
 // RunPruner calls Prune every interval until ctx is done.

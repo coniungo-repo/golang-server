@@ -109,6 +109,39 @@ func (r *reader) list(key string, fallback []string) []string {
 	return out
 }
 
+const (
+	maxRateWindows    = 4
+	maxRateWindowSpan = 7 * 24 * time.Hour
+)
+
+// rateWindows parses comma-separated limit/period pairs, e.g. "5/15m,15/24h".
+func (r *reader) rateWindows(key string, fallback []RateWindow) []RateWindow {
+	v := r.raw(key)
+	if v == "" {
+		return fallback
+	}
+	var out []RateWindow
+	for part := range strings.SplitSeq(v, ",") {
+		limit, period, ok := strings.Cut(strings.TrimSpace(part), "/")
+		n, nErr := strconv.ParseInt(strings.TrimSpace(limit), 10, 64)
+		d, dErr := time.ParseDuration(strings.TrimSpace(period))
+		if !ok || nErr != nil || dErr != nil || n < 1 || d < time.Second || d > maxRateWindowSpan {
+			r.fail(key, "%q must be limit/period pairs like 5/15m,15/24h, with limit >= 1 and period between 1s and 168h", v)
+			return fallback
+		}
+		if slices.ContainsFunc(out, func(w RateWindow) bool { return w.Period == d }) {
+			r.fail(key, "%q repeats the period %s", v, d)
+			return fallback
+		}
+		out = append(out, RateWindow{Limit: n, Period: d})
+	}
+	if len(out) > maxRateWindows {
+		r.fail(key, "%q has more than %d windows", v, maxRateWindows)
+		return fallback
+	}
+	return out
+}
+
 func (r *reader) logLevel(key string, fallback slog.Level) slog.Level {
 	v := r.raw(key)
 	if v == "" {

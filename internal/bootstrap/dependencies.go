@@ -49,7 +49,7 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 	}
 
 	clk := clock.New()
-	limiter := auth.NewLimiter(pool, cfg.Security.FingerprintSecret.Reveal(), clk)
+	limiter := auth.NewLimiter(pool, cfg.Security.FingerprintSecret.Reveal(), clk, cfg.Auth.RateLimits.Retention())
 
 	authService, err := auth.New(auth.Deps{
 		Config:         cfg.Auth,

@@ -174,3 +174,12 @@ func TestFingerprintIsKeyedAndNamespaced(t *testing.T) {
 		t.Fatal("fingerprint leaks the raw value")
 	}
 }
+
+func TestNewRequiresRateLimits(t *testing.T) {
+	s, _ := testService(t)
+	d := s.deps
+	d.Limiter = &Limiter{}
+	if _, err := New(d); err == nil || !strings.Contains(err.Error(), "rate limits") {
+		t.Fatalf("want rate limit error, got %v", err)
+	}
+}

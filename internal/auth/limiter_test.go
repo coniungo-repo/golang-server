@@ -9,8 +9,11 @@ import (
 	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
+	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+const testRetention = 24 * time.Hour
 
 // testLimiter needs TEST_DATABASE_URL pointing at a migrated database; the test is skipped without it.
 func testLimiter(t *testing.T) (*Limiter, *clock.Mock) {
@@ -26,13 +29,13 @@ func testLimiter(t *testing.T) (*Limiter, *clock.Mock) {
 	t.Cleanup(pool.Close)
 	clk := clock.NewMock(time.Now().Add(-48 * time.Hour).Truncate(time.Second))
 	secret := t.Name() + time.Now().String()
-	return NewLimiter(pool, secret, clk), clk
+	return NewLimiter(pool, secret, clk, testRetention), clk
 }
 
 func TestLimiterWindows(t *testing.T) {
 	l, clk := testLimiter(t)
 	ctx := context.Background()
-	policy := Policy{Kind: "test", Windows: []Window{{Limit: 2, Period: time.Minute}, {Limit: 3, Period: time.Hour}}}
+	policy := Policy{Kind: "test", Windows: []config.RateWindow{{Limit: 2, Period: time.Minute}, {Limit: 3, Period: time.Hour}}}
 	try := func() bool {
 		ok, err := l.Allow(ctx, Attempt{Policy: policy, Value: "phone:+2348031234567"})
 		if err != nil {
@@ -66,8 +69,8 @@ func TestLimiterWindows(t *testing.T) {
 func TestLimiterBlockedAttemptRecordsNothing(t *testing.T) {
 	l, _ := testLimiter(t)
 	ctx := context.Background()
-	tight := Policy{Kind: "tight", Windows: []Window{{Limit: 1, Period: time.Hour}}}
-	loose := Policy{Kind: "loose", Windows: []Window{{Limit: 2, Period: time.Hour}}}
+	tight := Policy{Kind: "tight", Windows: []config.RateWindow{{Limit: 1, Period: time.Hour}}}
+	loose := Policy{Kind: "loose", Windows: []config.RateWindow{{Limit: 2, Period: time.Hour}}}
 
 	if ok, _ := l.Allow(ctx, Attempt{tight, "a"}, Attempt{loose, "ip"}); !ok {
 		t.Fatal("first should pass")
@@ -82,7 +85,7 @@ func TestLimiterBlockedAttemptRecordsNothing(t *testing.T) {
 
 func TestLimiterConcurrent(t *testing.T) {
 	l, _ := testLimiter(t)
-	policy := Policy{Kind: "burst", Windows: []Window{{Limit: 5, Period: time.Hour}}}
+	policy := Policy{Kind: "burst", Windows: []config.RateWindow{{Limit: 5, Period: time.Hour}}}
 	var allowed atomic.Int32
 	var wg sync.WaitGroup
 	for range 40 {
@@ -105,10 +108,10 @@ func TestLimiterConcurrent(t *testing.T) {
 func TestLimiterPrune(t *testing.T) {
 	l, clk := testLimiter(t)
 	ctx := context.Background()
-	if _, err := l.Allow(ctx, Attempt{Policy{Kind: "prune", Windows: []Window{{Limit: 9, Period: time.Hour}}}, "x"}); err != nil {
+	if _, err := l.Allow(ctx, Attempt{Policy{Kind: "prune", Windows: []config.RateWindow{{Limit: 9, Period: time.Hour}}}, "x"}); err != nil {
 		t.Fatal(err)
 	}
-	clk.Add(retention + time.Minute)
+	clk.Add(testRetention + time.Minute)
 	n, err := l.Prune(ctx)
 	if err != nil || n < 1 {
 		t.Fatalf("pruned %d, err %v", n, err)

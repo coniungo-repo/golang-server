@@ -1,8 +1,10 @@
 package config
 
 import (
+	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 const validSecret = "0123456789abcdef0123456789abcdef"
@@ -88,6 +90,13 @@ func TestLoadRejects(t *testing.T) {
 		{"unknown sms provider", map[string]string{"SMS_PROVIDER": "fax"}, "SMS_PROVIDER"},
 		{"bad email from", map[string]string{"EMAIL_FROM": "not an address"}, "EMAIL_FROM"},
 		{"prod missing email from", prodEnv(map[string]string{"EMAIL_FROM": ""}), "EMAIL_FROM: is required"},
+		{"rate limit garbage", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "lots"}, "AUTH_RATE_LIMIT_DESTINATION"},
+		{"rate limit zero", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "0/15m"}, "AUTH_RATE_LIMIT_DESTINATION"},
+		{"rate limit negative", map[string]string{"AUTH_RATE_LIMIT_CLIENT_IP": "-1/1h"}, "AUTH_RATE_LIMIT_CLIENT_IP"},
+		{"rate limit no unit", map[string]string{"AUTH_RATE_LIMIT_CLIENT_IP": "30/60"}, "AUTH_RATE_LIMIT_CLIENT_IP"},
+		{"rate limit too long", map[string]string{"AUTH_RATE_LIMIT_CLIENT_IP": "30/720h"}, "AUTH_RATE_LIMIT_CLIENT_IP"},
+		{"rate limit repeated period", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "5/15m,10/15m"}, "repeats the period"},
+		{"rate limit too many windows", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "1/1m,2/2m,3/3m,4/4m,5/5m"}, "more than 4"},
 		{"prod http website", prodEnv(map[string]string{"SUPERTOKENS_WEBSITE_DOMAINS": "http://app.example.com", "CORS_ALLOWED_ORIGINS": "http://app.example.com"}), "must use https"},
 	}
 	for _, tt := range tests {
@@ -123,5 +132,33 @@ func TestSecretRedacts(t *testing.T) {
 	}
 	if b, _ := s.MarshalJSON(); string(b) != `"[redacted]"` {
 		t.Fatalf("secret leaked through json: %s", b)
+	}
+}
+
+func TestRateLimits(t *testing.T) {
+	cfg, err := LoadFrom(env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Auth.RateLimits; len(got.Destination) != 2 || got.Destination[0] != (RateWindow{5, 15 * time.Minute}) || got.Retention() != 24*time.Hour {
+		t.Fatalf("unexpected defaults: %+v", got)
+	}
+
+	cfg, err = LoadFrom(env(map[string]string{
+		"AUTH_RATE_LIMIT_DESTINATION": " 3/10m , 10/48h ",
+		"AUTH_RATE_LIMIT_CLIENT_IP":   "50/1h",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := RateLimits{
+		Destination: []RateWindow{{3, 10 * time.Minute}, {10, 48 * time.Hour}},
+		ClientIP:    []RateWindow{{50, time.Hour}},
+	}
+	if !slices.Equal(cfg.Auth.RateLimits.Destination, want.Destination) || !slices.Equal(cfg.Auth.RateLimits.ClientIP, want.ClientIP) {
+		t.Fatalf("got %+v, want %+v", cfg.Auth.RateLimits, want)
+	}
+	if cfg.Auth.RateLimits.Retention() != 48*time.Hour {
+		t.Fatalf("retention should be the longest window, got %s", cfg.Auth.RateLimits.Retention())
 	}
 }
