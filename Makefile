@@ -1,4 +1,4 @@
-.PHONY: run dev test lint vuln check build docker db-up db-down migrate migrate-down migration generate
+.PHONY: run dev test test-db lint vuln check build docker db-up db-down migrate migrate-down migration generate
 
 ENV = if [ -f .env ]; then set -a; . ./.env; set +a; fi;
 COMPOSE = docker compose --env-file .env -f deploy/docker-compose.yml
@@ -13,6 +13,9 @@ dev:
 
 test:
 	go test -race -count=1 ./...
+
+test-db:
+	@$(ENV) TEST_DATABASE_URL="$$DATABASE_URL" go test -race -count=1 ./...
 
 lint:
 	@test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)
@@ -31,7 +34,9 @@ docker:
 	docker build --build-arg VERSION=$(VERSION) -t golang-server:$(VERSION) .
 
 db-up:
-	$(COMPOSE) up -d --wait --remove-orphans
+	$(COMPOSE) up -d --wait --remove-orphans postgres
+	$(COMPOSE) exec -T postgres /docker-entrypoint-initdb.d/10-supertokens.sh
+	$(COMPOSE) up -d --wait supertokens
 
 db-down:
 	$(COMPOSE) down
