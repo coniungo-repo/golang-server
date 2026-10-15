@@ -2,9 +2,12 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
+	"net/mail"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -15,8 +18,16 @@ const (
 	maxPoolConns         = 1000
 	minProductionConns   = 10
 	minFingerprintLength = 32
+	minAuthAPIKeyLength  = 20
 	placeholderPrefix    = "change-me"
 )
+
+var localWebsiteDomains = []string{
+	"http://localhost:4321",
+	"http://localhost:5173",
+	"http://localhost:5174",
+	"http://localhost:5175",
+}
 
 func Load() (Config, error) {
 	return LoadFrom(os.LookupEnv)
@@ -27,6 +38,8 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 
 	env := Environment(r.string("APP_ENV", string(Development)))
 	r.oneOf("APP_ENV", string(env), string(Development), string(Test), string(Production))
+	local := env != Production
+	port := r.int("PORT", 8080)
 
 	cfg := Config{
 		App: App{
@@ -36,7 +49,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 		},
 		Server: Server{
 			Host:              r.string("HTTP_HOST", "0.0.0.0"),
-			Port:              r.int("PORT", 8080),
+			Port:              port,
 			ReadHeaderTimeout: r.duration("HTTP_READ_HEADER_TIMEOUT", 5*time.Second),
 			ReadTimeout:       r.duration("HTTP_READ_TIMEOUT", 15*time.Second),
 			WriteTimeout:      r.duration("HTTP_WRITE_TIMEOUT", 30*time.Second),
@@ -45,6 +58,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			DrainDelay:        r.durationOrZero("HTTP_DRAIN_DELAY", 0),
 			RequestTimeout:    r.duration("HTTP_REQUEST_TIMEOUT", 20*time.Second),
 			RequestIDHeader:   r.string("HTTP_REQUEST_ID_HEADER", ""),
+			ClientIPHeader:    r.string("HTTP_CLIENT_IP_HEADER", ""),
 		},
 		Database: Database{
 			URL:         r.secret("DATABASE_URL"),
@@ -56,7 +70,22 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			Level: r.logLevel("LOG_LEVEL", slog.LevelInfo),
 		},
 		CORS: CORS{
-			AllowedOrigins: r.list("CORS_ALLOWED_ORIGINS", nil),
+			AllowedOrigins: r.list("CORS_ALLOWED_ORIGINS", localList(local, localWebsiteDomains...)),
+		},
+		Auth: Auth{
+			ConnectionURI:   r.string("SUPERTOKENS_CONNECTION_URI", localDefault(local, "http://localhost:3567")),
+			APIKey:          r.secret("SUPERTOKENS_API_KEY"),
+			AppName:         r.string("SUPERTOKENS_APP_NAME", "GetGbam"),
+			APIDomain:       r.string("SUPERTOKENS_API_DOMAIN", localDefault(local, fmt.Sprintf("http://localhost:%d", port))),
+			APIBasePath:     r.path("SUPERTOKENS_API_BASE_PATH", "/auth"),
+			WebsiteDomains:  r.list("SUPERTOKENS_WEBSITE_DOMAINS", localList(local, localWebsiteDomains...)),
+			WebsiteBasePath: r.path("SUPERTOKENS_WEBSITE_BASE_PATH", "/auth"),
+		},
+		Delivery: Delivery{
+			EmailProvider: r.string("EMAIL_PROVIDER", ProviderLog),
+			EmailFrom:     r.string("EMAIL_FROM", ""),
+			SMSProvider:   r.string("SMS_PROVIDER", ProviderLog),
+			SMSSender:     r.string("SMS_SENDER", ""),
 		},
 		Security: Security{
 			FingerprintSecret: r.secret("FINGERPRINT_SECRET"),
@@ -100,7 +129,9 @@ func validate(r *reader, c Config) {
 		checkOrigin(r, "CORS_ALLOWED_ORIGINS", origin)
 	}
 
+	checkAuth(r, c.Auth, c.CORS.AllowedOrigins, prod)
 	checkFingerprintSecret(r, c.Security.FingerprintSecret, prod)
+	checkDelivery(r, c.Delivery, prod)
 
 	if prod {
 		if c.Database.MaxConns < minProductionConns {
@@ -129,12 +160,98 @@ func checkDatabaseURL(r *reader, key, dsn string, prod bool) {
 	}
 }
 
-func checkOrigin(r *reader, key, origin string) {
+func checkOrigin(r *reader, key, origin string) bool {
 	u, err := url.Parse(origin)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
 		u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
 		r.fail(key, "%q must be scheme://host[:port] with no path or trailing slash", origin)
+		return false
 	}
+	return true
+}
+
+func checkHTTPS(r *reader, key, origin string) {
+	if !strings.HasPrefix(origin, "https://") {
+		r.fail(key, "%q must use https in production", origin)
+	}
+}
+
+func checkAuth(r *reader, a Auth, corsOrigins []string, prod bool) {
+	r.require("SUPERTOKENS_CONNECTION_URI", a.ConnectionURI != "")
+	if a.ConnectionURI != "" {
+		for uri := range strings.SplitSeq(a.ConnectionURI, ";") {
+			u, err := url.Parse(uri)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				r.fail("SUPERTOKENS_CONNECTION_URI", "%q is not a valid http(s) URL", uri)
+			}
+		}
+	}
+
+	r.require("SUPERTOKENS_API_DOMAIN", a.APIDomain != "")
+	if a.APIDomain != "" && checkOrigin(r, "SUPERTOKENS_API_DOMAIN", a.APIDomain) && prod {
+		checkHTTPS(r, "SUPERTOKENS_API_DOMAIN", a.APIDomain)
+	}
+
+	r.require("SUPERTOKENS_WEBSITE_DOMAINS", len(a.WebsiteDomains) > 0)
+	for _, d := range a.WebsiteDomains {
+		if !checkOrigin(r, "SUPERTOKENS_WEBSITE_DOMAINS", d) {
+			continue
+		}
+		if prod {
+			checkHTTPS(r, "SUPERTOKENS_WEBSITE_DOMAINS", d)
+		}
+		if !slices.Contains(corsOrigins, d) {
+			r.fail("SUPERTOKENS_WEBSITE_DOMAINS", "%q must also be in CORS_ALLOWED_ORIGINS, or the browser can't call the auth API", d)
+		}
+	}
+
+	if a.APIKey.IsSet() && len(a.APIKey.Reveal()) < minAuthAPIKeyLength {
+		r.fail("SUPERTOKENS_API_KEY", "must be at least %d characters", minAuthAPIKeyLength)
+	}
+	if prod {
+		r.require("SUPERTOKENS_API_KEY", a.APIKey.IsSet())
+		if strings.HasPrefix(a.APIKey.Reveal(), placeholderPrefix) {
+			r.fail("SUPERTOKENS_API_KEY", "is still the example placeholder")
+		}
+	}
+}
+
+var (
+	emailProviders = []string{ProviderLog}
+	smsProviders   = []string{ProviderLog}
+)
+
+func checkDelivery(r *reader, d Delivery, prod bool) {
+	r.oneOf("EMAIL_PROVIDER", d.EmailProvider, emailProviders...)
+	r.oneOf("SMS_PROVIDER", d.SMSProvider, smsProviders...)
+	if d.EmailFrom != "" {
+		if _, err := mail.ParseAddress(d.EmailFrom); err != nil {
+			r.fail("EMAIL_FROM", "%q is not a valid address, e.g. GetGbam <hello@getgbam.com>", d.EmailFrom)
+		}
+	}
+	if prod {
+		if d.EmailProvider == ProviderLog {
+			r.fail("EMAIL_PROVIDER", "log only prints codes and is not allowed in production")
+		}
+		if d.SMSProvider == ProviderLog {
+			r.fail("SMS_PROVIDER", "log only prints codes and is not allowed in production")
+		}
+		r.require("EMAIL_FROM", d.EmailFrom != "")
+	}
+}
+
+func localDefault(local bool, value string) string {
+	if local {
+		return value
+	}
+	return ""
+}
+
+func localList(local bool, values ...string) []string {
+	if local {
+		return values
+	}
+	return nil
 }
 
 func checkFingerprintSecret(r *reader, s Secret, prod bool) {

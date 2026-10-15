@@ -8,7 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/nyaruka/phonenumbers/v2"
+	"github.com/nyaruka/phonenumbers"
 )
 
 const maxInputLen = 64
