@@ -24,6 +24,7 @@ All configuration comes from environment variables. The server validates everyth
 | `HTTP_REQUEST_TIMEOUT` | `20s` | Must be shorter than the write timeout |
 | `HTTP_SHUTDOWN_TIMEOUT` | `15s` | Total time allowed for shutdown |
 | `HTTP_DRAIN_DELAY` | `0s` | Time `/readyz` reports 503 before connections close. Set to about 5s behind a load balancer |
+| `HTTP_CLIENT_IP_HEADER` | empty | Proxy header carrying the client IP, e.g. `Fly-Client-IP`, used for rate limiting. Only set behind a proxy that overwrites it |
 | `HTTP_REQUEST_ID_HEADER` | empty | Reuse a proxy's request ID, e.g. `Fly-Request-Id`. Only set this when that proxy strips the header from clients |
 
 ## Database
@@ -39,8 +40,31 @@ All configuration comes from environment variables. The server validates everyth
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `CORS_ALLOWED_ORIGINS` | none | Comma-separated `scheme://host[:port]`. No wildcards, paths or trailing slashes |
+| `CORS_ALLOWED_ORIGINS` | local apps outside production, none in production | Comma-separated `scheme://host[:port]`. No wildcards, paths or trailing slashes |
 | `FINGERPRINT_SECRET` | required | At least 32 characters. Generate with `openssl rand -hex 32`. The example placeholder is rejected in production |
+
+## Auth (SuperTokens)
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `SUPERTOKENS_CONNECTION_URI` | `http://localhost:3567` outside production | SuperTokens core. Separate several with `;`. Plain http is allowed for a private network |
+| `SUPERTOKENS_API_KEY` | empty | At least 20 characters, must match the core's `API_KEYS`. Required in production |
+| `SUPERTOKENS_APP_NAME` | `GetGbam` | Shown in emails and SMS |
+| `SUPERTOKENS_API_DOMAIN` | `http://localhost:$PORT` outside production | Public origin of this API. https in production |
+| `SUPERTOKENS_API_BASE_PATH` | `/auth` | Where the auth routes are mounted |
+| `SUPERTOKENS_WEBSITE_DOMAINS` | local apps outside production | Comma-separated frontend origins. Each must also be in `CORS_ALLOWED_ORIGINS`. https in production |
+| `SUPERTOKENS_WEBSITE_BASE_PATH` | `/auth` | Frontend auth route |
+
+Local Docker Compose also reads `SUPERTOKENS_DB_USER`, `SUPERTOKENS_DB_PASSWORD` and `SUPERTOKENS_DB_NAME` to create the core's database. The API never uses them.
+
+## Delivery
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `EMAIL_PROVIDER` | `log` | `log` prints codes to the console and is rejected in production |
+| `EMAIL_FROM` | empty | e.g. `"GetGbam <hello@getgbam.com>"` (quote it in `.env`). Required in production |
+| `SMS_PROVIDER` | `log` | As above |
+| `SMS_SENDER` | empty | Sender ID or number, as your provider requires |
 
 ## Phone numbers
 
