@@ -61,6 +61,10 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 		Security: Security{
 			FingerprintSecret: r.secret("FINGERPRINT_SECRET"),
 		},
+		Phone: Phone{
+			DefaultRegion:  r.string("PHONE_DEFAULT_REGION", ""),
+			AllowedRegions: r.list("PHONE_ALLOWED_REGIONS", nil),
+		},
 	}
 
 	validate(r, cfg)

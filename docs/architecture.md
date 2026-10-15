@@ -31,6 +31,19 @@ Handlers should:
 - pass `r.Context()` to every database and network call
 - send results with `respond.JSON` and failures with `respond.Error` or `respond.ServerError`
 
+Phone numbers go through the shared validator in `deps.Phone`, never straight into storage:
+
+```go
+n, err := h.phones.Parse(body.Phone)
+if err != nil {
+	respond.Error(w, r, http.StatusUnprocessableEntity, phone.Message(err))
+	return
+}
+store(n.E164())
+```
+
+`Parse` accepts local or international input, including full-width digits and common separators, and rejects letters, extensions, unknown country codes, impossible lengths and unassigned ranges. By default only mobile-capable numbers pass. `Number` masks itself in `fmt` and slog; `E164()` is the only way to the raw value.
+
 `respond.ServerError` logs the cause and sends a generic message. Deadlines become 503 and client disconnects 499.
 
 ## Packages
@@ -42,6 +55,7 @@ Handlers should:
 | `platform/database` | pgx pool with startup ping |
 | `platform/httpserver` | Server lifecycle and graceful shutdown |
 | `platform/middleware` | The chain above |
+| `platform/phone` | Phone number parsing, policy and masking |
 | `platform/request` | Strict JSON decoding |
 | `platform/respond` | JSON responses and error mapping |
 | `platform/requestid` | Request ID generation and context storage |

@@ -22,6 +22,7 @@ type Config struct {
 	Database Database
 	CORS     CORS
 	Security Security
+	Phone    Phone
 }
 
 type App struct {
@@ -66,4 +67,9 @@ type CORS struct {
 
 type Security struct {
 	FingerprintSecret Secret
+}
+
+type Phone struct {
+	DefaultRegion  string
+	AllowedRegions []string
 }
