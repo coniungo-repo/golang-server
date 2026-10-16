@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -115,5 +117,38 @@ func TestLimiterPrune(t *testing.T) {
 	n, err := l.Prune(ctx)
 	if err != nil || n < 1 {
 		t.Fatalf("pruned %d, err %v", n, err)
+	}
+}
+
+func TestSMSTotalCapsTextsOnly(t *testing.T) {
+	l, _ := testLimiter(t)
+	wide := []config.RateWindow{{Limit: 100, Period: time.Hour}}
+	s := &Service{
+		deps:              Deps{Limiter: l},
+		destinationPolicy: Policy{Kind: kindDestination, Windows: wide},
+		clientPolicy:      Policy{Kind: kindClientIP, Windows: wide},
+		smsTotalPolicy:    Policy{Kind: kindSMSTotal, Windows: []config.RateWindow{{Limit: 2, Period: time.Hour}}},
+	}
+	send := func(ip, destination string) bool {
+		r := httptest.NewRequest(http.MethodPost, "/auth/signinup/code", nil)
+		r.RemoteAddr = ip + ":1000"
+		ok, err := s.allowSend(r, destination)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+
+	if !send("203.0.113.1", "phone:+2348031234561") || !send("203.0.113.2", "phone:+2348031234562") {
+		t.Fatal("texts under the total should pass")
+	}
+	if send("203.0.113.3", "phone:+2348031234563") {
+		t.Fatal("a third text from a new IP to a new number should hit the SMS total")
+	}
+	if !send("203.0.113.3", "email:ada@example.com") {
+		t.Fatal("emails must not count against the SMS total")
+	}
+	if got := tooManyCodes("phone:+2348031234563"); got != tooManyTextsMessage {
+		t.Fatalf("texts should point to email, got %q", got)
 	}
 }

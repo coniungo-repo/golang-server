@@ -41,7 +41,7 @@ func TestCoreCallsTimeOut(t *testing.T) {
 		Config: config.Auth{
 			ConnectionURI: core.URL, AppName: "Test", APIDomain: "http://localhost:8080", APIBasePath: "/auth",
 			WebsiteDomains: []string{"http://localhost:5173"}, WebsiteBasePath: "/auth", CoreTimeout: 200 * time.Millisecond,
-			RateLimits: config.RateLimits{Destination: window, ClientIP: window},
+			RateLimits: config.RateLimits{Destination: window, ClientIP: window, SMSTotal: window},
 		},
 		Clock: clock.New(), Log: log, Phones: phones, Email: email.LogSender{Log: log}, SMS: sms.LogSender{Log: log},
 		Users:     users.New(nil, clock.New(), ""),
@@ -66,7 +66,7 @@ func TestNewRequiresCoreTimeout(t *testing.T) {
 	s, _ := testService(t)
 	d := s.deps
 	window := []config.RateWindow{{Limit: 1, Period: time.Hour}}
-	d.Config.RateLimits = config.RateLimits{Destination: window, ClientIP: window}
+	d.Config.RateLimits = config.RateLimits{Destination: window, ClientIP: window, SMSTotal: window}
 	d.Limiter = &Limiter{}
 	d.UserLimit = ratelimit.New(clock.New(), nil)
 	d.Clock = clock.New()

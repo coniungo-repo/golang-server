@@ -66,6 +66,7 @@ All configuration comes from environment variables. The server validates everyth
 | `SUPERTOKENS_TIMEOUT` | `5s` | Limit on each call to the core. The SDK ignores request deadlines, so this is what stops a hung core from holding requests and database locks. Must be shorter than `HTTP_REQUEST_TIMEOUT` |
 | `AUTH_RATE_LIMIT_DESTINATION` | `5/15m,15/24h` | Code sends per email or phone, as `limit/period` pairs. Up to 4 windows, each 1s to 168h |
 | `AUTH_RATE_LIMIT_CLIENT_IP` | `30/1h,100/24h` | Code sends per client IP, same format |
+| `AUTH_RATE_LIMIT_SMS_TOTAL` | `300/1h,2000/24h` | Texts across every number and client, shared by all instances: the ceiling on SMS spend. Over it, phone sign-in is refused with a message pointing to email. Raise it as real traffic grows |
 
 Local Docker Compose also reads `SUPERTOKENS_DB_USER`, `SUPERTOKENS_DB_PASSWORD` and `SUPERTOKENS_DB_NAME` to create the core's database. The API never uses them.
 

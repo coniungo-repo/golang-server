@@ -30,6 +30,7 @@ const (
 var (
 	defaultDestinationLimits = []RateWindow{{Limit: 5, Period: 15 * time.Minute}, {Limit: 15, Period: 24 * time.Hour}}
 	defaultClientIPLimits    = []RateWindow{{Limit: 30, Period: time.Hour}, {Limit: 100, Period: 24 * time.Hour}}
+	defaultSMSTotalLimits    = []RateWindow{{Limit: 300, Period: time.Hour}, {Limit: 2000, Period: 24 * time.Hour}}
 	defaultRequestIPLimits   = []RateWindow{{Limit: 600, Period: time.Minute}}
 	defaultRequestUserLimits = []RateWindow{{Limit: 120, Period: time.Minute}, {Limit: 3000, Period: time.Hour}}
 )
@@ -102,6 +103,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			RateLimits: RateLimits{
 				Destination: r.rateWindows("AUTH_RATE_LIMIT_DESTINATION", defaultDestinationLimits),
 				ClientIP:    r.rateWindows("AUTH_RATE_LIMIT_CLIENT_IP", defaultClientIPLimits),
+				SMSTotal:    r.rateWindows("AUTH_RATE_LIMIT_SMS_TOTAL", defaultSMSTotalLimits),
 			},
 		},
 		Admin: Admin{

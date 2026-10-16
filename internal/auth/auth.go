@@ -46,6 +46,7 @@ type Service struct {
 	deps              Deps
 	destinationPolicy Policy
 	clientPolicy      Policy
+	smsTotalPolicy    Policy
 }
 
 func New(d Deps) (*Service, error) {
@@ -53,8 +54,8 @@ func New(d Deps) (*Service, error) {
 		return nil, errors.New("auth: Phones, Email, SMS, Limiter, UserLimit, Users, Clock and Log are required")
 	}
 	limits := d.Config.RateLimits
-	if len(limits.Destination) == 0 || len(limits.ClientIP) == 0 {
-		return nil, errors.New("auth: destination and client IP rate limits are required")
+	if len(limits.Destination) == 0 || len(limits.ClientIP) == 0 || len(limits.SMSTotal) == 0 {
+		return nil, errors.New("auth: destination, client IP and SMS total rate limits are required")
 	}
 	if d.DeliveryTimeout <= 0 {
 		return nil, errors.New("auth: a delivery timeout is required")
@@ -66,6 +67,7 @@ func New(d Deps) (*Service, error) {
 		deps:              d,
 		destinationPolicy: Policy{Kind: kindDestination, Windows: limits.Destination},
 		clientPolicy:      Policy{Kind: kindClientIP, Windows: limits.ClientIP},
+		smsTotalPolicy:    Policy{Kind: kindSMSTotal, Windows: limits.SMSTotal},
 	}
 
 	recipes := []supertokens.Recipe{

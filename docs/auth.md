@@ -151,12 +151,13 @@ To offboard: suspend the person in Google, then revoke their invite in the admin
 
 ## Rate limits
 
-Code sends (create and resend) are limited per destination and per client IP. Every window applies, and a send is refused if any is full:
+Code sends (create and resend) are limited per destination and per client IP, and texts also by a total across everyone that caps SMS spend. Every window applies, and a send is refused if any is full:
 
 | Key | Setting | Default |
 | --- | --- | --- |
 | Email or phone | `AUTH_RATE_LIMIT_DESTINATION` | `5/15m,15/24h` |
 | Client IP | `AUTH_RATE_LIMIT_CLIENT_IP` | `30/1h,100/24h` |
+| Every text, all numbers and clients | `AUTH_RATE_LIMIT_SMS_TOTAL` | `300/1h,2000/24h` |
 
 Counts live in `sign_in_attempts`, keyed by an HMAC with `FINGERPRINT_SECRET`, so raw emails, phones and IPs are never stored. Rows older than the longest window are pruned hourly. Set `HTTP_CLIENT_IP_HEADER` behind a proxy, or every user shares the proxy's IP.
 

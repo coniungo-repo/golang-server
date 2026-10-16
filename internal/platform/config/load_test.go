@@ -147,6 +147,7 @@ func TestLoadRejects(t *testing.T) {
 		{"prod termii generic channel", prodEnv(map[string]string{"EMAIL_PROVIDER": "postmark", "POSTMARK_SERVER_TOKEN": "t", "SMS_PROVIDER": "termii", "TERMII_API_KEY": "k", "TERMII_BASE_URL": "https://api.ng.termii.com", "SMS_SENDER": "GetGbam", "TERMII_CHANNEL": "generic"}), "TERMII_CHANNEL: must be dnd in production"},
 		{"metrics addr garbage", map[string]string{"METRICS_ADDR": "9091"}, "METRICS_ADDR"},
 		{"metrics on the api port", map[string]string{"METRICS_ADDR": ":8080"}, "METRICS_ADDR: must use a different port"},
+		{"sms total garbage", map[string]string{"AUTH_RATE_LIMIT_SMS_TOTAL": "lots"}, "AUTH_RATE_LIMIT_SMS_TOTAL"},
 		{"rate limit too many windows", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "1/1m,2/2m,3/3m,4/4m,5/5m"}, "more than 4"},
 		{"admin setting without issuer", map[string]string{"ADMIN_EMAIL_DOMAIN": "coniungolabs.com"}, "OIDC_ISSUER is empty"},
 		{"admin issuer missing client", map[string]string{"OIDC_ISSUER": "https://accounts.google.com"}, "OIDC_CLIENT_ID: is required"},
@@ -218,6 +219,9 @@ func TestRateLimits(t *testing.T) {
 	}
 	if !slices.Equal(cfg.Auth.RateLimits.Destination, want.Destination) || !slices.Equal(cfg.Auth.RateLimits.ClientIP, want.ClientIP) {
 		t.Fatalf("got %+v, want %+v", cfg.Auth.RateLimits, want)
+	}
+	if !slices.Equal(cfg.Auth.RateLimits.SMSTotal, []RateWindow{{300, time.Hour}, {2000, 24 * time.Hour}}) {
+		t.Fatalf("unexpected SMS total default: %+v", cfg.Auth.RateLimits.SMSTotal)
 	}
 	if cfg.Auth.RateLimits.Retention() != 48*time.Hour {
 		t.Fatalf("retention should be the longest window, got %s", cfg.Auth.RateLimits.Retention())
