@@ -245,7 +245,7 @@ func TestAuthEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("malformed auth requests are client errors", func(t *testing.T) {
+	t.Run("malformed auth requests are client errors with a request id", func(t *testing.T) {
 		cases := []struct {
 			path, host string
 			body       rawBody
@@ -259,9 +259,12 @@ func TestAuthEndToEnd(t *testing.T) {
 		}
 		for _, tc := range cases {
 			got := c.do("POST", tc.path, tc.host, "", tc.body)
-			if got.status != 400 || got.body["message"] != tc.want {
-				t.Errorf("%s %q: %d %v, want 400 %q", tc.path, tc.body, got.status, got.body, tc.want)
+			if got.status != 400 || got.body["message"] != tc.want || got.body["request_id"] == nil {
+				t.Errorf("%s %q: %d %v, want 400 %q with a request_id", tc.path, tc.body, got.status, got.body, tc.want)
 			}
+		}
+		if got := c.do("POST", "/auth/signout", "", "", nil); got.status != 401 || got.body["request_id"] == nil {
+			t.Errorf("signout without a session: %d %v, want 401 with a request_id", got.status, got.body)
 		}
 		if strings.Contains(logs.String(), "auth request failed") {
 			t.Fatal("client mistakes were logged as server errors")
