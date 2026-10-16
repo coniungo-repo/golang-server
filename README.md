@@ -25,7 +25,7 @@ make dev
 | `make dev` | Run with live reload (air) |
 | `make run` | Run once |
 | `make test` | Tests with the race detector |
-| `make test-db` | Tests including Postgres-backed ones, against `DATABASE_URL` |
+| `make test-db` | All tests, including Postgres and SuperTokens end-to-end ones, against your local stack |
 | `make lint` | gofmt, go vet, staticcheck |
 | `make vuln` | govulncheck |
 | `make check` | lint, test and vuln, as CI runs them |
@@ -34,6 +34,7 @@ make dev
 | `make db-up` / `make db-down` | Start or stop local Postgres and the SuperTokens core |
 | `make migration name=x` | New SQL migration in `migrations/` |
 | `make migrate` / `make migrate-down` | Apply or roll back migrations |
+| `make admin-invite email=x` | Invite a staff admin (needs admin sign-in configured) |
 | `make generate` | Generate typed queries from `queries/` with sqlc |
 
 Dev tools (air, goose, sqlc, staticcheck, govulncheck) are pinned in `tools.mod` and run through `go tool`, so nothing needs installing globally.
@@ -41,9 +42,11 @@ Dev tools (air, goose, sqlc, staticcheck, govulncheck) are pinned in `tools.mod`
 ## Layout
 
 ```
-cmd/api                 entry point
+cmd/api                 API server
+cmd/admin               admin invite CLI
 internal/bootstrap      wiring: config, dependencies, router
-internal/auth           passwordless sign-in, sessions, rate limiting
+internal/auth           sign-in, sessions, admin sign-in, authorisation, rate limiting
+internal/users          users, identities, roles, admin invites
 internal/health         liveness and readiness probes
 internal/store          sqlc-generated queries
 internal/platform       shared infrastructure (config, logging, middleware, HTTP helpers)
