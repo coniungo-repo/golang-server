@@ -95,8 +95,8 @@ func TestAllowedRegions(t *testing.T) {
 	if _, err := v.Parse("08031234567"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := v.Parse("+447400123456"); !errors.Is(err, ErrRegionNotAllowed) {
-		t.Fatalf("want ErrRegionNotAllowed, got %v", err)
+	if _, err := v.Parse("+447400123456"); !errors.Is(err, ErrRegionNotAllowed) || !strings.Contains(Message(err), "email") {
+		t.Fatalf("want ErrRegionNotAllowed pointing to email, got %v (%q)", err, Message(err))
 	}
 }
 

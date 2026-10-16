@@ -37,7 +37,7 @@ var messages = map[error]string{
 	ErrTooManyDigits:      "That phone number has too many digits. Check it and try again.",
 	ErrExtension:          "Leave out the extension and try again.",
 	ErrInvalid:            "That isn't a valid phone number. Check it and try again.",
-	ErrRegionNotAllowed:   "We don't support phone numbers from that country yet.",
+	ErrRegionNotAllowed:   "We can't text numbers from that country yet. Use your email address instead.",
 	ErrTypeNotAllowed:     "Use a mobile number that can receive texts.",
 }
 
