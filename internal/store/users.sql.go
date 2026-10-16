@@ -41,6 +41,17 @@ func (q *Queries) AddRole(ctx context.Context, arg AddRoleParams) error {
 	return err
 }
 
+const countIdentities = `-- name: CountIdentities :one
+SELECT count(*) FROM user_identities WHERE user_id = $1
+`
+
+func (q *Queries) CountIdentities(ctx context.Context, userID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countIdentities, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAdminInvite = `-- name: CreateAdminInvite :one
 INSERT INTO admin_invites (email, invited_by)
 VALUES ($1, $2)
@@ -103,6 +114,24 @@ func (q *Queries) CreateUser(ctx context.Context) (string, error) {
 	return id, err
 }
 
+const deleteIdentity = `-- name: DeleteIdentity :exec
+DELETE FROM user_identities WHERE id = $1
+`
+
+func (q *Queries) DeleteIdentity(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteIdentity, id)
+	return err
+}
+
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users WHERE id = $1
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
+	return err
+}
+
 const getIdentityBySubject = `-- name: GetIdentityBySubject :one
 SELECT i.id, i.user_id, i.supertokens_user_id, u.status
 FROM user_identities i
@@ -162,6 +191,22 @@ func (q *Queries) GetIdentityBySupertokensID(ctx context.Context, supertokensUse
 	return i, err
 }
 
+const getIdentityForUser = `-- name: GetIdentityForUser :one
+SELECT supertokens_user_id FROM user_identities WHERE id = $1 AND user_id = $2
+`
+
+type GetIdentityForUserParams struct {
+	ID     int64  `json:"id"`
+	UserID string `json:"user_id"`
+}
+
+func (q *Queries) GetIdentityForUser(ctx context.Context, arg GetIdentityForUserParams) (string, error) {
+	row := q.db.QueryRow(ctx, getIdentityForUser, arg.ID, arg.UserID)
+	var supertokens_user_id string
+	err := row.Scan(&supertokens_user_id)
+	return supertokens_user_id, err
+}
+
 const getOpenAdminInviteForUpdate = `-- name: GetOpenAdminInviteForUpdate :one
 SELECT id, accepted_by
 FROM admin_invites
@@ -179,6 +224,25 @@ func (q *Queries) GetOpenAdminInviteForUpdate(ctx context.Context, email string)
 	var i GetOpenAdminInviteForUpdateRow
 	err := row.Scan(&i.ID, &i.AcceptedBy)
 	return i, err
+}
+
+const getSessionUserStatus = `-- name: GetSessionUserStatus :one
+SELECT u.status
+FROM users u
+JOIN user_identities i ON i.user_id = u.id
+WHERE u.id = $1 AND i.supertokens_user_id = $2
+`
+
+type GetSessionUserStatusParams struct {
+	UserID            string `json:"user_id"`
+	SupertokensUserID string `json:"supertokens_user_id"`
+}
+
+func (q *Queries) GetSessionUserStatus(ctx context.Context, arg GetSessionUserStatusParams) (string, error) {
+	row := q.db.QueryRow(ctx, getSessionUserStatus, arg.UserID, arg.SupertokensUserID)
+	var status string
+	err := row.Scan(&status)
+	return status, err
 }
 
 const getUserStatus = `-- name: GetUserStatus :one
@@ -243,6 +307,47 @@ func (q *Queries) ListAdminInvites(ctx context.Context) ([]AdminInvite, error) {
 	return items, nil
 }
 
+const listIdentities = `-- name: ListIdentities :many
+SELECT id, kind, subject, email, verified_at
+FROM user_identities
+WHERE user_id = $1
+ORDER BY id
+`
+
+type ListIdentitiesRow struct {
+	ID         int64     `json:"id"`
+	Kind       string    `json:"kind"`
+	Subject    string    `json:"subject"`
+	Email      *string   `json:"email"`
+	VerifiedAt time.Time `json:"verified_at"`
+}
+
+func (q *Queries) ListIdentities(ctx context.Context, userID string) ([]ListIdentitiesRow, error) {
+	rows, err := q.db.Query(ctx, listIdentities, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIdentitiesRow{}
+	for rows.Next() {
+		var i ListIdentitiesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Subject,
+			&i.Email,
+			&i.VerifiedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRoles = `-- name: ListRoles :many
 SELECT role FROM user_roles WHERE user_id = $1 ORDER BY role
 `
@@ -289,6 +394,17 @@ func (q *Queries) ListSupertokensUserIDs(ctx context.Context, userID string) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockUser = `-- name: LockUser :one
+SELECT status FROM users WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockUser(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRow(ctx, lockUser, id)
+	var status string
+	err := row.Scan(&status)
+	return status, err
 }
 
 const removeRole = `-- name: RemoveRole :execrows

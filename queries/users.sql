@@ -69,3 +69,30 @@ LIMIT 200;
 -- name: InsertAdminAudit :exec
 INSERT INTO admin_audit_log (actor_id, action, target)
 VALUES (@actor_id, @action, @target);
+
+-- name: LockUser :one
+SELECT status FROM users WHERE id = @id FOR UPDATE;
+
+-- name: DeleteUser :exec
+DELETE FROM users WHERE id = @id;
+
+-- name: ListIdentities :many
+SELECT id, kind, subject, email, verified_at
+FROM user_identities
+WHERE user_id = @user_id
+ORDER BY id;
+
+-- name: CountIdentities :one
+SELECT count(*) FROM user_identities WHERE user_id = @user_id;
+
+-- name: GetIdentityForUser :one
+SELECT supertokens_user_id FROM user_identities WHERE id = @id AND user_id = @user_id;
+
+-- name: DeleteIdentity :exec
+DELETE FROM user_identities WHERE id = @id;
+
+-- name: GetSessionUserStatus :one
+SELECT u.status
+FROM users u
+JOIN user_identities i ON i.user_id = u.id
+WHERE u.id = @user_id AND i.supertokens_user_id = @supertokens_user_id;

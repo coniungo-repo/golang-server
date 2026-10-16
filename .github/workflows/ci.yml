@@ -33,7 +33,7 @@ jobs:
       supertokens:
         image: registry.supertokens.io/supertokens/supertokens-postgresql:12.2.0
         env:
-          POSTGRESQL_CONNECTION_URI: postgresql://ci:ci@postgres:5432/ci
+          POSTGRESQL_CONNECTION_URI: postgresql://ci:ci@postgres:5432/postgres
           API_KEYS: ci-supertokens-api-key-0123456789
         ports:
           - 3567:3567

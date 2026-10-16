@@ -27,7 +27,7 @@ const (
 	adminHost    = "admin.test"
 )
 
-var codePattern = regexp.MustCompile(`body="(\d{6}) `)
+var codePattern = regexp.MustCompile(`(?:body|subject)="(\d{6}) `)
 
 type syncBuffer struct {
 	mu sync.Mutex
@@ -103,6 +103,56 @@ func (c client) phoneSignIn(logs *syncBuffer, phone string) result {
 	})
 }
 
+func (c client) emailSignIn(logs *syncBuffer, addr string) result {
+	c.t.Helper()
+	created := c.do("POST", "/auth/signinup/code", "", "", map[string]string{"email": addr})
+	if created.body["status"] != "OK" {
+		c.t.Fatalf("create code: %v", created.body)
+	}
+	return c.do("POST", "/auth/signinup/code/consume", "", "", map[string]string{
+		"deviceId": created.body["deviceId"].(string), "preAuthSessionId": created.body["preAuthSessionId"].(string), "userInputCode": logs.lastCode(c.t),
+	})
+}
+
+func (c client) startContact(token string, body map[string]string) result {
+	c.t.Helper()
+	return c.do("POST", "/api/v1/me/identities", "", token, body)
+}
+
+func (c client) verifyContact(token string, started result, code string) result {
+	c.t.Helper()
+	return c.do("POST", "/api/v1/me/identities/verify", "", token, map[string]string{
+		"device_id": started.body["device_id"].(string), "pre_auth_session_id": started.body["pre_auth_session_id"].(string), "code": code,
+	})
+}
+
+func (c client) addContact(logs *syncBuffer, token string, body map[string]string) result {
+	c.t.Helper()
+	started := c.startContact(token, body)
+	if started.status != 201 {
+		c.t.Fatalf("start: %d %v", started.status, started.body)
+	}
+	return c.verifyContact(token, started, logs.lastCode(c.t))
+}
+
+func (c client) identities(token string) []any {
+	c.t.Helper()
+	got := c.do("GET", "/api/v1/me/identities", "", token, nil)
+	if got.status != 200 {
+		c.t.Fatalf("list identities: %d %v", got.status, got.body)
+	}
+	return got.body["identities"].([]any)
+}
+
+func (c client) userID(token string) string {
+	c.t.Helper()
+	got := c.do("GET", "/api/v1/me", "", token, nil)
+	if got.status != 200 {
+		c.t.Fatalf("me: %d %v", got.status, got.body)
+	}
+	return got.body["user_id"].(string)
+}
+
 func (c client) adminSignIn(host, code string) result {
 	c.t.Helper()
 	return c.do("POST", "/auth/signinup", host, "", map[string]any{
@@ -117,6 +167,10 @@ func (c client) adminSignIn(host, code string) result {
 
 func randomPhone() string {
 	return fmt.Sprintf("+234803%07d", rand.IntN(10_000_000))
+}
+
+func randomEmail() string {
+	return fmt.Sprintf("user%d@example.com", rand.Int64())
 }
 
 func randomStaff() string {
@@ -184,6 +238,85 @@ func TestAuthEndToEnd(t *testing.T) {
 		again := c.phoneSignIn(logs, local)
 		if got := c.do("GET", "/api/v1/me", "", again.token, nil).body["user_id"]; got != me.body["user_id"] {
 			t.Fatalf("got user %v, want %v", got, me.body["user_id"])
+		}
+	})
+
+	addr := randomEmail()
+	var emailSession result
+
+	t.Run("a customer adds an email and can sign in with it", func(t *testing.T) {
+		added := c.addContact(logs, first.token, map[string]string{"email": strings.ToUpper(addr)})
+		if added.status != 201 || len(added.body["identities"].([]any)) != 2 {
+			t.Fatalf("verify: %d %v", added.status, added.body)
+		}
+		emailSession = c.emailSignIn(logs, addr)
+		if got := c.userID(emailSession.token); got != me.body["user_id"] {
+			t.Fatalf("email sign-in got user %v, want %v", got, me.body["user_id"])
+		}
+	})
+
+	t.Run("a contact already on the account is refused before sending", func(t *testing.T) {
+		if got := c.startContact(first.token, map[string]string{"email": addr}); got.status != 409 {
+			t.Fatalf("status %d, want 409", got.status)
+		}
+	})
+
+	t.Run("a wrong code does not link", func(t *testing.T) {
+		started := c.startContact(first.token, map[string]string{"email": randomEmail()})
+		code := logs.lastCode(t)
+		wrong := fmt.Sprintf("%06d", (int(code[0]-'0')+1)%10*100000+int(code[1]-'0')*10000)
+		if got := c.verifyContact(first.token, started, wrong); got.status != 422 {
+			t.Fatalf("status %d, want 422", got.status)
+		}
+		if got := len(c.identities(first.token)); got != 2 {
+			t.Fatalf("identities %d, want 2", got)
+		}
+	})
+
+	other := c.phoneSignIn(logs, randomPhone())
+
+	t.Run("a contact on another account is refused without saying whose", func(t *testing.T) {
+		started := c.startContact(other.token, map[string]string{"email": addr})
+		if started.status != 201 {
+			t.Fatalf("start should not reveal the owner: %d %v", started.status, started.body)
+		}
+		got := c.verifyContact(other.token, started, logs.lastCode(t))
+		if got.status != 409 || strings.Contains(fmt.Sprint(got.body), me.body["user_id"].(string)) {
+			t.Fatalf("verify: %d %v", got.status, got.body)
+		}
+		if n := len(c.identities(other.token)); n != 1 {
+			t.Fatalf("other account has %d identities, want 1", n)
+		}
+		if got := c.userID(c.emailSignIn(logs, addr).token); got != me.body["user_id"] {
+			t.Fatalf("email moved to %v", got)
+		}
+	})
+
+	t.Run("the last sign-in method cannot be removed", func(t *testing.T) {
+		id := c.identities(other.token)[0].(map[string]any)["id"]
+		if got := c.do("DELETE", fmt.Sprintf("/api/v1/me/identities/%v", id), "", other.token, nil).status; got != 409 {
+			t.Fatalf("status %d, want 409", got)
+		}
+	})
+
+	t.Run("removing a contact ends its sessions and frees it", func(t *testing.T) {
+		var id any
+		for _, raw := range c.identities(first.token) {
+			if ident := raw.(map[string]any); ident["kind"] == "email" {
+				id = ident["id"]
+			}
+		}
+		if got := c.do("DELETE", fmt.Sprintf("/api/v1/me/identities/%v", id), "", first.token, nil).status; got != 204 {
+			t.Fatalf("remove status %d", got)
+		}
+		if got := c.do("GET", "/api/v1/me", "", emailSession.token, nil).status; got != 401 {
+			t.Fatalf("removed method's session status %d, want 401", got)
+		}
+		if got := c.userID(first.token); got != me.body["user_id"] {
+			t.Fatalf("phone session lost: %v", got)
+		}
+		if got := c.userID(c.emailSignIn(logs, addr).token); got == me.body["user_id"] {
+			t.Fatal("a removed email should sign in as a new account")
 		}
 	})
 
@@ -320,6 +453,60 @@ func TestAuthEndToEnd(t *testing.T) {
 		}
 		if got := c.adminSignIn(adminHost, idp.code(testClientID, secondSub, second, nil)); got.token != "" {
 			t.Fatalf("revoked admin signed in again: %v", got.body)
+		}
+	})
+
+	t.Run("staff cannot add contacts", func(t *testing.T) {
+		if got := c.do("POST", "/api/v1/me/identities", adminHost, adminSession.token, map[string]string{"email": randomEmail()}).status; got != 403 {
+			t.Fatalf("status %d, want 403", got)
+		}
+	})
+
+	t.Run("customers delete their own account", func(t *testing.T) {
+		gone := randomPhone()
+		session := c.phoneSignIn(logs, gone)
+		uid := c.userID(session.token)
+		c.addContact(logs, session.token, map[string]string{"email": randomEmail()})
+		if got := c.do("DELETE", "/api/v1/me", "", session.token, nil).status; got != 204 {
+			t.Fatalf("delete status %d", got)
+		}
+		if got := c.do("GET", "/api/v1/me", "", session.token, nil).status; got != 401 {
+			t.Fatalf("deleted user's session status %d, want 401", got)
+		}
+		again := c.phoneSignIn(logs, gone)
+		if again.body["createdNewUser"] != true || c.userID(again.token) == uid {
+			t.Fatalf("SuperTokens user should be gone: %v", again.body)
+		}
+	})
+
+	t.Run("admins delete a user and it is audited", func(t *testing.T) {
+		session := c.phoneSignIn(logs, randomPhone())
+		uid := c.userID(session.token)
+		if got := c.do("DELETE", "/api/v1/admin/users/"+uid, "", adminSession.token, nil).status; got != 404 {
+			t.Fatalf("off admin host status %d, want 404", got)
+		}
+		if got := c.do("DELETE", "/api/v1/admin/users/"+uid, adminHost, adminSession.token, nil).status; got != 204 {
+			t.Fatalf("delete status %d", got)
+		}
+		if got := c.do("GET", "/api/v1/me", "", session.token, nil).status; got != 401 {
+			t.Fatalf("deleted user's session status %d, want 401", got)
+		}
+		if got := c.do("DELETE", "/api/v1/admin/users/"+uid, adminHost, adminSession.token, nil).status; got != 404 {
+			t.Fatalf("second delete status %d, want 404", got)
+		}
+		var n int
+		err := deps.DB.QueryRow(context.Background(),
+			"SELECT count(*) FROM admin_audit_log WHERE action = 'user.deleted' AND target = $1 AND actor_id = $2",
+			uid, adminMe.body["user_id"]).Scan(&n)
+		if err != nil || n != 1 {
+			t.Fatalf("audit rows %d, err %v", n, err)
+		}
+	})
+
+	t.Run("admins cannot delete themselves", func(t *testing.T) {
+		uid := adminMe.body["user_id"].(string)
+		if got := c.do("DELETE", "/api/v1/admin/users/"+uid, adminHost, adminSession.token, nil).status; got != 409 {
+			t.Fatalf("status %d, want 409", got)
 		}
 	})
 

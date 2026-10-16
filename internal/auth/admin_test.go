@@ -96,10 +96,10 @@ func TestSessionClaimsRoundTrip(t *testing.T) {
 func TestPermissions(t *testing.T) {
 	admin := Principal{Roles: []users.Role{users.RoleAdmin}}
 	customer := Principal{Roles: []users.Role{users.RoleCustomer, users.RoleProvider}}
-	if !admin.Can(PermManageAdminInvites) || !admin.Can(PermManageUserStatus) {
+	if !admin.Can(PermManageAdminInvites) || !admin.Can(PermManageUserStatus) || !admin.Can(PermDeleteUsers) {
 		t.Fatal("admin should hold admin permissions")
 	}
-	if customer.Can(PermManageAdminInvites) || customer.Can(PermManageUserStatus) {
+	if customer.Can(PermManageAdminInvites) || customer.Can(PermManageUserStatus) || customer.Can(PermDeleteUsers) {
 		t.Fatal("customers and providers must not hold admin permissions")
 	}
 }
