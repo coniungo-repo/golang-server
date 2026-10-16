@@ -183,3 +183,32 @@ func grepLines(s, substr string) string {
 	}
 	return strings.Join(out, "\n")
 }
+
+func TestCodeSendIPLimitGroupsIPv6(t *testing.T) {
+	l, clk := testLimiter(t)
+	wide := []config.RateWindow{{Limit: 100, Period: time.Hour}}
+	s := &Service{
+		deps:              Deps{Limiter: l, Users: users.New(l.db, clk, "")},
+		destinationPolicy: Policy{Kind: kindDestination, Windows: wide},
+		clientPolicy:      Policy{Kind: kindClientIP, Windows: []config.RateWindow{{Limit: 2, Period: time.Hour}}},
+		smsTotalPolicy:    Policy{Kind: kindSMSTotal, Windows: wide},
+	}
+	send := func(remote string, n int) bool {
+		r := httptest.NewRequest(http.MethodPost, "/auth/signinup/code", nil)
+		r.RemoteAddr = remote
+		ok, err := s.allowSend(r, fmt.Sprintf("email:user%d@example.com", n))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	if !send("[2001:db8:1:2::1]:1000", 1) || !send("[2001:db8:1:2::2]:1000", 2) {
+		t.Fatal("the first two sends from a /64 should pass")
+	}
+	if send("[2001:db8:1:2:ffff::9]:1000", 3) {
+		t.Fatal("rotating addresses inside one /64 must not reset the per-IP limit")
+	}
+	if !send("[2001:db8:1:3::1]:1000", 4) {
+		t.Fatal("another /64 has its own limit")
+	}
+}

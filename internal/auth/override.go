@@ -7,6 +7,7 @@ import (
 
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
+	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/request"
 	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/supertokens/supertokens-golang/recipe/passwordless/plessmodels"
@@ -111,10 +112,10 @@ func contactKey(emailAddr, phoneNumber *string) (string, error) {
 	}
 }
 
-// allowSend checks and records a code send against the client IP and destination limits, and texts to numbers without an account against the SMS total. Returning users are never held back by the total, which only exists to stop texts to new numbers piling up. Nothing is recorded when it refuses.
+// allowSend checks and records a code send against the client IP (IPv6 grouped by /64, like the request limiter) and destination limits, and texts to numbers without an account against the SMS total. Returning users are never held back by the total, which only exists to stop texts to new numbers piling up. Nothing is recorded when it refuses.
 func (s *Service) allowSend(r *http.Request, destination string) (bool, error) {
 	attempts := []Attempt{
-		{Policy: s.clientPolicy, Value: request.ClientIP(r, s.deps.ClientIPHeader)},
+		{Policy: s.clientPolicy, Value: ratelimit.ClientKey(request.ClientIP(r, s.deps.ClientIPHeader))},
 		{Policy: s.destinationPolicy, Value: destination},
 	}
 	countsTowardTotal := false
