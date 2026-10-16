@@ -22,10 +22,11 @@ type Permission string
 const (
 	PermManageAdminInvites Permission = "admin_invites:manage"
 	PermManageUserStatus   Permission = "user_status:manage"
+	PermDeleteUsers        Permission = "users:delete"
 )
 
 var rolePermissions = map[users.Role][]Permission{
-	users.RoleAdmin: {PermManageAdminInvites, PermManageUserStatus},
+	users.RoleAdmin: {PermManageAdminInvites, PermManageUserStatus, PermDeleteUsers},
 }
 
 func (p Principal) Can(perm Permission) bool {
@@ -39,15 +40,15 @@ func (p Principal) Can(perm Permission) bool {
 	return false
 }
 
-// RequireSession rejects requests without a valid session or from a suspended user, and puts the Principal on the request context. Access tokens are verified without a core call, so this database check is what makes suspension immediate.
+// RequireSession rejects requests without a valid session, from a suspended or deleted user, or from a sign-in method since removed, and puts the Principal on the request context. Access tokens are verified without a core call, so this database check is what makes suspension immediate.
 func (s *Service) RequireSession(next http.Handler) http.Handler {
 	return session.VerifySession(nil, func(w http.ResponseWriter, r *http.Request) {
-		p, ok := principalFromSession(r.Context())
+		p, stUserID, ok := principalFromSession(r.Context())
 		if !ok {
 			respond.Error(w, r, http.StatusUnauthorized, signInAgainMessage)
 			return
 		}
-		active, err := s.deps.Users.IsActive(r.Context(), p.UserID)
+		active, err := s.deps.Users.IsActive(r.Context(), p.UserID, stUserID)
 		if err != nil {
 			respond.ServerError(w, r, err)
 			return

@@ -11,6 +11,11 @@ import (
 // Register mounts the account routes and, when admin sign-in is configured, the admin routes.
 func (s *Service) Register(mux route.Mux) {
 	mux.Handle("GET /me", s.RequireSession(http.HandlerFunc(me)))
+	mux.Handle("DELETE /me", s.RequireSession(http.HandlerFunc(s.deleteMe)))
+	mux.Handle("GET /me/identities", s.RequireSession(http.HandlerFunc(s.listIdentities)))
+	mux.Handle("POST /me/identities", s.RequireSession(http.HandlerFunc(s.startIdentity)))
+	mux.Handle("POST /me/identities/verify", s.RequireSession(http.HandlerFunc(s.verifyIdentity)))
+	mux.Handle("DELETE /me/identities/{id}", s.RequireSession(http.HandlerFunc(s.removeIdentity)))
 	if s.deps.Admin.Enabled() {
 		s.registerAdmin(mux)
 	}

@@ -59,13 +59,13 @@ func (s *Service) validatePhone(value interface{}, _ string) *string {
 
 const suspendedMessage = "This account is suspended. Contact support."
 
-// overridePasswordlessFunctions links each successful code sign-in to an app user, creating a customer on first sign-in.
+// overridePasswordlessFunctions links each successful code sign-in to an app user, creating a customer on first sign-in. Codes consumed to add a contact to a signed-in account skip this; verifyIdentity links those.
 func (s *Service) overridePasswordlessFunctions(original plessmodels.RecipeInterface) plessmodels.RecipeInterface {
 	consume := *original.ConsumeCode
 
 	f := func(userInput *plessmodels.UserInputCodeWithDeviceID, linkCode *string, preAuthSessionID string, tenantID string, uc supertokens.UserContext) (plessmodels.ConsumeCodeResponse, error) {
 		resp, err := consume(userInput, linkCode, preAuthSessionID, tenantID, uc)
-		if err != nil || resp.OK == nil {
+		if err != nil || resp.OK == nil || isLinking(uc) {
 			return resp, err
 		}
 		id, method, err := passwordlessIdentity(resp.OK.User)

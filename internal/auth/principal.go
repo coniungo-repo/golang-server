@@ -103,10 +103,11 @@ func principalFromClaims(payload map[string]interface{}) (Principal, bool) {
 	return p, true
 }
 
-func principalFromSession(ctx context.Context) (Principal, bool) {
+func principalFromSession(ctx context.Context) (Principal, string, bool) {
 	sc := session.GetSessionFromRequestContext(ctx)
 	if sc == nil {
-		return Principal{}, false
+		return Principal{}, "", false
 	}
-	return principalFromClaims(sc.GetAccessTokenPayload())
+	p, ok := principalFromClaims(sc.GetAccessTokenPayload())
+	return p, sc.GetUserID(), ok
 }

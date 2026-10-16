@@ -17,6 +17,7 @@ func (s *Service) registerAdmin(mux route.Mux) {
 	mux.Handle("POST /admin/invites/{id}/revoke", s.RequireAdmin(PermManageAdminInvites, http.HandlerFunc(s.revokeInvite)))
 	mux.Handle("POST /admin/users/{id}/suspend", s.RequireAdmin(PermManageUserStatus, http.HandlerFunc(s.setStatus(users.StatusSuspended))))
 	mux.Handle("POST /admin/users/{id}/reactivate", s.RequireAdmin(PermManageUserStatus, http.HandlerFunc(s.setStatus(users.StatusActive))))
+	mux.Handle("DELETE /admin/users/{id}", s.RequireAdmin(PermDeleteUsers, http.HandlerFunc(s.deleteUser)))
 }
 
 type inviteRequest struct {
@@ -87,13 +88,13 @@ func (s *Service) setStatus(status users.Status) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		target := r.PathValue("id")
 		if !validUUID(target) {
-			respond.Error(w, r, http.StatusNotFound, "We couldn't find that user.")
+			respond.Error(w, r, http.StatusNotFound, userNotFoundMessage)
 			return
 		}
 		err := s.deps.Users.SetStatus(r.Context(), target, status, UserID(r.Context()))
 		switch {
 		case errors.Is(err, users.ErrNotFound):
-			respond.Error(w, r, http.StatusNotFound, "We couldn't find that user.")
+			respond.Error(w, r, http.StatusNotFound, userNotFoundMessage)
 			return
 		case errors.Is(err, users.ErrSelfAction):
 			respond.Error(w, r, http.StatusConflict, "You can't change your own account status.")

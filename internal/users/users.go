@@ -193,9 +193,9 @@ func (s *Service) ResolveAdmin(ctx context.Context, id Identity) (Principal, err
 	return p, err
 }
 
-// IsActive reports whether userID exists and is not suspended. RequireSession calls it on every request, so suspension applies at once.
-func (s *Service) IsActive(ctx context.Context, userID string) (bool, error) {
-	status, err := store.New(s.db).GetUserStatus(ctx, userID)
+// IsActive reports whether userID exists, is not suspended and still owns the SuperTokens user behind the session. RequireSession calls it on every request, so suspension, account deletion and removing a sign-in method apply at once.
+func (s *Service) IsActive(ctx context.Context, userID, supertokensUserID string) (bool, error) {
+	status, err := store.New(s.db).GetSessionUserStatus(ctx, store.GetSessionUserStatusParams{UserID: userID, SupertokensUserID: supertokensUserID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
