@@ -147,6 +147,7 @@ To offboard: suspend the person in Google, then revoke their invite in the admin
 
 - Emails are trimmed, lowercased and must be a bare, routable address.
 - Phones go through `platform/phone`: local input uses `PHONE_DEFAULT_REGION`, everything is stored as E.164, and only mobile-capable numbers are accepted. `0803 123 4567` and `+234 803 123 4567` are the same account.
+- Only numbers from `PHONE_ALLOWED_REGIONS` get SMS codes. Anyone else, such as a customer abroad booking for family in Nigeria, signs in with email: a number from another country is refused with a message saying so, and the app should offer email sign-in when it sees it. A booking's recipient phone is booking data, not a sign-in method, so it never needs a code.
 
 ## Rate limits
 
