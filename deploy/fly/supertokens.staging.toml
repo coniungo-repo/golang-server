@@ -2,13 +2,13 @@
 # Deploy with `make deploy-core-staging`. Before the first deploy run `fly ips allocate-v6 --private -a getgbam-supertokens-staging`,
 # and check `fly ips list -a getgbam-supertokens-staging` shows no public address.
 # POSTGRESQL_CONNECTION_URI and API_KEYS are secrets, set with `fly secrets set`.
-# Keep the image version in step with deploy/docker-compose.yml.
+# Keep the image version in step with deploy/docker-compose.yml; the digest pins the exact build.
 
 app = "getgbam-supertokens-staging"
 primary_region = "lhr"
 
 [build]
-  image = "registry.supertokens.io/supertokens/supertokens-postgresql:12.2.0"
+  image = "registry.supertokens.io/supertokens/supertokens-postgresql:12.2.0@sha256:9c5254f1daca6cef8868f2bd2af50808ee5790e5f414c54e4186ab2a6ae676b5"
 
 [env]
   ACCESS_TOKEN_VALIDITY = "900"
