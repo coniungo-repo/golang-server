@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,6 +39,8 @@ type Metrics struct {
 	deliveryDuration *prometheus.HistogramVec
 	coreRequests     *prometheus.CounterVec
 	coreDuration     *prometheus.HistogramVec
+	smsTotalCounted  prometheus.Counter
+	smsTotalLimit    *prometheus.GaugeVec
 }
 
 // New registers the API metrics plus Go runtime and process metrics. version is exposed as app_build_info.
@@ -64,6 +67,12 @@ func New(version string) *Metrics {
 		coreRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "supertokens_core_requests_total", Help: "Calls to the SuperTokens core by HTTP status code.",
 		}, []string{"code"}),
+		smsTotalCounted: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "sms_total_counted_total", Help: "Texts to numbers without an account, which count toward AUTH_RATE_LIMIT_SMS_TOTAL.",
+		}),
+		smsTotalLimit: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "sms_total_limit", Help: "The AUTH_RATE_LIMIT_SMS_TOTAL ceiling for each window, for alerts on how close texts are to it.",
+		}, []string{"window"}),
 		coreDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name: "supertokens_core_request_duration_seconds", Help: "Time each call to the SuperTokens core took.",
 			Buckets: prometheus.DefBuckets,
@@ -74,7 +83,8 @@ func New(version string) *Metrics {
 	})
 	build.Set(1)
 	m.registry.MustRegister(
-		m.httpRequests, m.httpDuration, m.rateLimited, m.deliveries, m.deliveryDuration, m.coreRequests, m.coreDuration, build,
+		m.httpRequests, m.httpDuration, m.rateLimited, m.deliveries, m.deliveryDuration, m.coreRequests, m.coreDuration,
+		m.smsTotalCounted, m.smsTotalLimit, build,
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
@@ -104,6 +114,35 @@ func (m *Metrics) RateLimited(limit string) {
 		return
 	}
 	m.rateLimited.WithLabelValues(limit).Inc()
+}
+
+// SMSTotalCounted counts a text that counted toward the SMS total.
+func (m *Metrics) SMSTotalCounted() {
+	if m == nil {
+		return
+	}
+	m.smsTotalCounted.Inc()
+}
+
+// SetSMSTotalLimits publishes the SMS total's ceilings, labelled by window such as 1h or 24h.
+func (m *Metrics) SetSMSTotalLimits(windows []config.RateWindow) {
+	if m == nil {
+		return
+	}
+	for _, w := range windows {
+		m.smsTotalLimit.WithLabelValues(windowLabel(w.Period)).Set(float64(w.Limit))
+	}
+}
+
+func windowLabel(d time.Duration) string {
+	switch {
+	case d%time.Hour == 0:
+		return strconv.Itoa(int(d/time.Hour)) + "h"
+	case d%time.Minute == 0:
+		return strconv.Itoa(int(d/time.Minute)) + "m"
+	default:
+		return strconv.Itoa(int(d/time.Second)) + "s"
+	}
 }
 
 // CoreTransport wraps next so every call to the SuperTokens core is counted and timed.

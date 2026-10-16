@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
 )
@@ -43,6 +44,8 @@ func TestMetrics(t *testing.T) {
 	m.ObserveRequest(http.MethodGet, "GET /api/v1/me", 200, 30*time.Millisecond)
 	m.ObserveRequest("BREW", "unmatched", 405, time.Millisecond)
 	m.RateLimited(LimitUser)
+	m.SMSTotalCounted()
+	m.SetSMSTotalLimits([]config.RateWindow{{Limit: 1000, Period: time.Hour}, {Limit: 5000, Period: 24 * time.Hour}, {Limit: 50, Period: 90 * time.Minute}, {Limit: 5, Period: 30 * time.Second}})
 	_ = m.Email(fakeEmail{}).Send(context.Background(), email.Message{})
 	_ = m.SMS(fakeSMS{err: errors.New("down")}).Send(context.Background(), sms.Message{})
 
@@ -61,6 +64,11 @@ func TestMetrics(t *testing.T) {
 		`http_requests_total{method="OTHER",route="unmatched",status="405"} 1`,
 		`http_request_duration_seconds_count{method="GET",route="GET /api/v1/me"} 1`,
 		`rate_limited_total{limit="user"} 1`,
+		`sms_total_counted_total 1`,
+		`sms_total_limit{window="1h"} 1000`,
+		`sms_total_limit{window="24h"} 5000`,
+		`sms_total_limit{window="90m"} 50`,
+		`sms_total_limit{window="30s"} 5`,
 		`code_deliveries_total{channel="email",result="ok"} 1`,
 		`code_deliveries_total{channel="sms",result="error"} 1`,
 		`code_delivery_duration_seconds_count{channel="sms"} 1`,
@@ -74,6 +82,8 @@ func TestNilMetricsRecordNothing(t *testing.T) {
 	var m *Metrics
 	m.ObserveRequest(http.MethodGet, "x", 200, time.Second)
 	m.RateLimited(LimitUser)
+	m.SMSTotalCounted()
+	m.SetSMSTotalLimits([]config.RateWindow{{Limit: 1, Period: time.Hour}})
 	m.RegisterPool(nil)
 	if m.CoreTransport(http.DefaultTransport) != http.DefaultTransport {
 		t.Fatal("nil metrics must leave the transport alone")

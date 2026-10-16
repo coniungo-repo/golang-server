@@ -220,7 +220,7 @@ func TestRateLimits(t *testing.T) {
 	if !slices.Equal(cfg.Auth.RateLimits.Destination, want.Destination) || !slices.Equal(cfg.Auth.RateLimits.ClientIP, want.ClientIP) {
 		t.Fatalf("got %+v, want %+v", cfg.Auth.RateLimits, want)
 	}
-	if !slices.Equal(cfg.Auth.RateLimits.SMSTotal, []RateWindow{{300, time.Hour}, {2000, 24 * time.Hour}}) {
+	if !slices.Equal(cfg.Auth.RateLimits.SMSTotal, []RateWindow{{1000, time.Hour}, {5000, 24 * time.Hour}}) {
 		t.Fatalf("unexpected SMS total default: %+v", cfg.Auth.RateLimits.SMSTotal)
 	}
 	if cfg.Auth.RateLimits.Retention() != 48*time.Hour {

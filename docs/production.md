@@ -93,7 +93,7 @@ Settings that are not secret already live in `fly.staging.toml` and `fly.product
 | `APP_NAME`, `LOG_LEVEL` | `golang-server`, `info` | Service name in logs; `debug` only while investigating |
 | `RATE_LIMIT_CLIENT_IP`, `RATE_LIMIT_USER` | `600/1m`, `120/1m,3000/1h` | Raise if `rate_limited_total` shows real users, e.g. one carrier address |
 | `AUTH_RATE_LIMIT_DESTINATION`, `AUTH_RATE_LIMIT_CLIENT_IP` | `5/15m,15/24h`, `30/1h,100/24h` | Code-send limits; tighten if SMS costs spike |
-| `AUTH_RATE_LIMIT_SMS_TOTAL` | `300/1h,2000/24h` | The hard ceiling on SMS spend across everyone. Set it to what you are willing to spend in an hour and a day; raise it as traffic grows, before it starts refusing real users |
+| `AUTH_RATE_LIMIT_SMS_TOTAL` | `1000/1h,5000/24h` | The ceiling on texts to new numbers. The default suits an unknown launch; set up the alerts in [operations](operations.md#sms-spend) and raise it when they fire |
 | `HTTP_REQUEST_ID_HEADER` | empty | Leave empty unless the proxy is known to strip the header from clients |
 | `API_DOCS_ENABLED` | `false` in production | Only enable where the API may be public anyway |
 
