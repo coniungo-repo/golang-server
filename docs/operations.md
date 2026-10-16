@@ -59,7 +59,7 @@ Keys containing `password`, `secret`, `token`, `authorization`, `cookie`, `api_k
 - Admin sign-in uses an Internal OAuth consent screen, enforced 2-step verification, and its own `ADMIN_API_HOST`
 - TLS is terminated by the platform; the app sends HSTS in production
 - CI is green: lint, race tests, govulncheck and image build
-- GitHub Actions are pinned to commit SHAs, and the Dockerfile and Fly core images to digests, so a moved tag can't change what runs. Dependabot (`.github/dependabot.yml`) proposes Go module, action and Dockerfile updates weekly; review and merge them like any change. It does not cover `tools.mod`, the CI service images or the Fly core image: bump those by hand, keeping the core in step with `deploy/docker-compose.yml`
+- GitHub Actions are pinned to commit SHAs, and the Dockerfile and Fly core images to digests, so a moved tag can't change what runs. Dependabot (`.github/dependabot.yml`) proposes Go module, action and Dockerfile updates weekly; review and merge them like any change. When it bumps the `golang` image in the Dockerfile, set `toolchain` in `go.mod` to the same version in that PR, so CI tests with the compiler that ships; a test fails until they match. It does not cover `tools.mod`, the CI service images or the Fly core image: bump those by hand, keeping the core in step with `deploy/docker-compose.yml`
 
 ## Metrics
 
