@@ -98,16 +98,17 @@ type RateWindow struct {
 	Period time.Duration
 }
 
-// RateLimits caps sign-in code sends. Every window applies; the strictest one wins.
+// RateLimits caps sign-in code sends. Every window applies; the strictest one wins. SMSTotal caps texts across all numbers and clients, bounding SMS spend.
 type RateLimits struct {
 	Destination []RateWindow
 	ClientIP    []RateWindow
+	SMSTotal    []RateWindow
 }
 
 // Retention is the longest window, which is how long attempts must be kept.
 func (l RateLimits) Retention() time.Duration {
 	var longest time.Duration
-	for _, w := range append(slices.Clone(l.Destination), l.ClientIP...) {
+	for _, w := range slices.Concat(l.Destination, l.ClientIP, l.SMSTotal) {
 		longest = max(longest, w.Period)
 	}
 	return longest

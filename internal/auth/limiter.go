@@ -31,6 +31,7 @@ type Attempt struct {
 const (
 	kindDestination = "destination"
 	kindClientIP    = "client_ip"
+	kindSMSTotal    = "sms_total"
 )
 
 // Limiter counts sign-in code sends in Postgres, keyed by an HMAC so raw emails, phones and IPs are never stored.

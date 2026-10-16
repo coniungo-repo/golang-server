@@ -88,13 +88,14 @@ func (s *Service) startIdentity(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, r, http.StatusConflict, alreadyLinkedMessage)
 		return
 	}
-	allowed, err := s.allowSend(r, string(kind)+":"+subject)
+	destination := string(kind) + ":" + subject
+	allowed, err := s.allowSend(r, destination)
 	if err != nil {
 		respond.ServerError(w, r, err)
 		return
 	}
 	if !allowed {
-		respond.Error(w, r, http.StatusTooManyRequests, tooManyCodesMessage)
+		respond.Error(w, r, http.StatusTooManyRequests, tooManyCodes(destination))
 		return
 	}
 

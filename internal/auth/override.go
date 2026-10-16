@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
@@ -12,7 +13,12 @@ import (
 	"github.com/supertokens/supertokens-golang/supertokens"
 )
 
-const tooManyCodesMessage = "Too many codes requested. Wait a few minutes and try again."
+const (
+	tooManyCodesMessage    = "Too many codes requested. Wait a few minutes and try again."
+	tooManyTextsMessage    = "Too many codes requested. Wait a few minutes, or sign in with your email address instead."
+	phoneDestinationPrefix = "phone:"
+	smsTotalAttemptValue   = "all"
+)
 
 var errNoContact = errors.New("auth: request has neither email nor phone number")
 
@@ -40,7 +46,7 @@ func (s *Service) overrideAPIs(original plessmodels.APIInterface) plessmodels.AP
 			return plessmodels.CreateCodePOSTResponse{}, err
 		}
 		if !allowed {
-			return plessmodels.CreateCodePOSTResponse{GeneralError: &supertokens.GeneralErrorResponse{Message: tooManyCodesMessage}}, nil
+			return plessmodels.CreateCodePOSTResponse{GeneralError: &supertokens.GeneralErrorResponse{Message: tooManyCodes(destination)}}, nil
 		}
 		return createCode(emailAddr, phoneNumber, tenantID, options, userContext)
 	}
@@ -62,7 +68,7 @@ func (s *Service) overrideAPIs(original plessmodels.APIInterface) plessmodels.AP
 			return plessmodels.ResendCodePOSTResponse{}, err
 		}
 		if !allowed {
-			return plessmodels.ResendCodePOSTResponse{GeneralError: &supertokens.GeneralErrorResponse{Message: tooManyCodesMessage}}, nil
+			return plessmodels.ResendCodePOSTResponse{GeneralError: &supertokens.GeneralErrorResponse{Message: tooManyCodes(destination)}}, nil
 		}
 		return resendCode(deviceID, preAuthSessionID, tenantID, options, userContext)
 	}
@@ -99,19 +105,31 @@ func contactKey(emailAddr, phoneNumber *string) (string, error) {
 	case emailAddr != nil:
 		return "email:" + *emailAddr, nil
 	case phoneNumber != nil:
-		return "phone:" + *phoneNumber, nil
+		return phoneDestinationPrefix + *phoneNumber, nil
 	default:
 		return "", errNoContact
 	}
 }
 
+// allowSend checks and records a code send against the client IP and destination limits, and for texts the SMS total. Nothing is recorded when it refuses.
 func (s *Service) allowSend(r *http.Request, destination string) (bool, error) {
-	allowed, err := s.deps.Limiter.Allow(r.Context(),
-		Attempt{Policy: s.clientPolicy, Value: request.ClientIP(r, s.deps.ClientIPHeader)},
-		Attempt{Policy: s.destinationPolicy, Value: destination},
-	)
+	attempts := []Attempt{
+		{Policy: s.clientPolicy, Value: request.ClientIP(r, s.deps.ClientIPHeader)},
+		{Policy: s.destinationPolicy, Value: destination},
+	}
+	if strings.HasPrefix(destination, phoneDestinationPrefix) {
+		attempts = append(attempts, Attempt{Policy: s.smsTotalPolicy, Value: smsTotalAttemptValue})
+	}
+	allowed, err := s.deps.Limiter.Allow(r.Context(), attempts...)
 	if err == nil && !allowed {
 		s.deps.Metrics.RateLimited(metrics.LimitCodeSend)
 	}
 	return allowed, err
+}
+
+func tooManyCodes(destination string) string {
+	if strings.HasPrefix(destination, phoneDestinationPrefix) {
+		return tooManyTextsMessage
+	}
+	return tooManyCodesMessage
 }
