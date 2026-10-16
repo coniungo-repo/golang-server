@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/mail"
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,6 +72,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			RequestIDHeader:   r.string("HTTP_REQUEST_ID_HEADER", ""),
 			ClientIPHeader:    r.string("HTTP_CLIENT_IP_HEADER", ""),
 			MaxHeaderBytes:    r.int("HTTP_MAX_HEADER_BYTES", 64<<10),
+			MetricsAddr:       r.string("METRICS_ADDR", ""),
 		},
 		Database: Database{
 			URL:               r.secret("DATABASE_URL"),
@@ -159,6 +162,14 @@ func validate(r *reader, c Config) {
 	}
 	if c.Server.MaxHeaderBytes < minHeaderBytes || c.Server.MaxHeaderBytes > maxHeaderBytes {
 		r.fail("HTTP_MAX_HEADER_BYTES", "must be between %d and %d", minHeaderBytes, maxHeaderBytes)
+	}
+	if c.Server.MetricsAddr != "" {
+		_, port, err := net.SplitHostPort(c.Server.MetricsAddr)
+		if err != nil || port == "" {
+			r.fail("METRICS_ADDR", "%q must be host:port or :port, e.g. :9091", c.Server.MetricsAddr)
+		} else if port == strconv.Itoa(c.Server.Port) {
+			r.fail("METRICS_ADDR", "must use a different port from PORT, so metrics are never public")
+		}
 	}
 	if c.Delivery.Timeout >= c.Server.RequestTimeout {
 		r.fail("DELIVERY_TIMEOUT", "must be shorter than HTTP_REQUEST_TIMEOUT, since codes are sent during the request")

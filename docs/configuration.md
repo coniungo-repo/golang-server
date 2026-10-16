@@ -26,6 +26,7 @@ All configuration comes from environment variables. The server validates everyth
 | `HTTP_SHUTDOWN_TIMEOUT` | `15s` | Total time allowed for shutdown |
 | `HTTP_DRAIN_DELAY` | `0s` | Time `/readyz` reports 503 before connections close. Set to about 5s behind a load balancer |
 | `HTTP_CLIENT_IP_HEADER` | empty | Proxy header carrying the client IP, e.g. `Fly-Client-IP`, used for rate limiting. Only set behind a proxy that overwrites it |
+| `METRICS_ADDR` | empty (off) | Where to serve Prometheus metrics, e.g. `:9091`. A separate port from `PORT`; never expose it publicly |
 | `HTTP_MAX_HEADER_BYTES` | `65536` | Largest request header block, 4096 to 1048576 |
 | `HTTP_REQUEST_ID_HEADER` | empty | Reuse a proxy's request ID, e.g. `Fly-Request-Id`. Only set this when that proxy strips the header from clients |
 | `RATE_LIMIT_CLIENT_IP` | `600/1m` | Requests per client IP (IPv6 per /64) on every route but `/livez` and `/readyz`, as `limit/period` pairs. Up to 4 windows, each 1s to 168h. Per instance |

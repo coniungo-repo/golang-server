@@ -43,6 +43,12 @@ func RunAPI(ctx context.Context) error {
 	go deps.IPLimit.RunSweeper(ctx, sweepInterval)
 	go deps.UserLimit.RunSweeper(ctx, sweepInterval)
 
+	if addr := cfg.Server.MetricsAddr; addr != "" {
+		if _, err := httpserver.ServeBackground(ctx, addr, deps.Metrics.Handler(), log); err != nil {
+			return err
+		}
+	}
+
 	handler, err := newRouter(deps)
 	if err != nil {
 		return err

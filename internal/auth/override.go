@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
+	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
 	"github.com/coniungo-repo/golang-server/internal/platform/request"
 	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/supertokens/supertokens-golang/recipe/passwordless/plessmodels"
@@ -105,8 +106,12 @@ func contactKey(emailAddr, phoneNumber *string) (string, error) {
 }
 
 func (s *Service) allowSend(r *http.Request, destination string) (bool, error) {
-	return s.deps.Limiter.Allow(r.Context(),
+	allowed, err := s.deps.Limiter.Allow(r.Context(),
 		Attempt{Policy: s.clientPolicy, Value: request.ClientIP(r, s.deps.ClientIPHeader)},
 		Attempt{Policy: s.destinationPolicy, Value: destination},
 	)
+	if err == nil && !allowed {
+		s.deps.Metrics.RateLimited(metrics.LimitCodeSend)
+	}
+	return allowed, err
 }

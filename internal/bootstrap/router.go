@@ -7,6 +7,7 @@ import (
 
 	"github.com/coniungo-repo/golang-server/api"
 	"github.com/coniungo-repo/golang-server/internal/docs"
+	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
 	"github.com/coniungo-repo/golang-server/internal/platform/middleware"
 	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/request"
@@ -53,11 +54,12 @@ func newRouter(deps *dependencies) (http.Handler, error) {
 		handler,
 		middleware.RequestID(deps.Config.Server.RequestIDHeader),
 		middleware.Log,
+		middleware.Metrics(deps.Metrics),
 		middleware.Routes(mux, authPrefixes...),
 		middleware.Recover,
 		middleware.SecureHeaders(deps.Config.App.IsProduction()),
 		cors,
-		middleware.RateLimit("client_ip", deps.IPLimit, clientKey(deps.Config.Server.ClientIPHeader)),
+		middleware.RateLimit(metrics.LimitClientIP, deps.IPLimit, clientKey(deps.Config.Server.ClientIPHeader), deps.Metrics),
 		middleware.MaxBytes(request.MaxBodyBytes),
 		middleware.Timeout(deps.Config.Server.RequestTimeout),
 	), nil

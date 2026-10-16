@@ -56,6 +56,43 @@ Keys containing `password`, `secret`, `token`, `authorization`, `cookie`, `api_k
 - TLS is terminated by the platform; the app sends HSTS in production
 - CI is green: lint, race tests, govulncheck and image build
 
+## Metrics
+
+Set `METRICS_ADDR` (e.g. `:9091`) to serve Prometheus metrics at `/metrics` on its own port. Keep that port private: on Fly, list it under `[metrics]` in `fly.toml` and not under `[[services]]`, and Fly scrapes it into its managed Prometheus and Grafana.
+
+```toml
+[metrics]
+  port = 9091
+  path = "/metrics"
+```
+
+| Metric | Labels | Use |
+| --- | --- | --- |
+| `http_requests_total` | `method`, `route`, `status` | Traffic and error rate per route. `route` is the pattern (`GET /api/v1/me/identities/{id}`), `/auth/*` for SuperTokens routes, or `unmatched` |
+| `http_request_duration_seconds` | `method`, `route` | Latency per route (histogram) |
+| `rate_limited_total` | `limit` = `client_ip`, `user`, `code_send` | Abuse, or limits set too low |
+| `code_deliveries_total` | `channel` = `email`, `sms`; `result` = `ok`, `error` | Code sends and provider failures |
+| `code_delivery_duration_seconds` | `channel` | How long Postmark or Termii take |
+| `supertokens_core_requests_total` | `code` | Core health; `code` is the HTTP status |
+| `supertokens_core_request_duration_seconds` | | Core latency |
+| `db_pool_connections` | `state` = `acquired`, `idle`, `constructing` | Pool use against `db_pool_max_connections` |
+| `db_pool_empty_acquires_total`, `db_pool_acquire_wait_seconds_total`, `db_pool_canceled_acquires_total` | | Requests waiting for a connection: the first sign of an undersized pool or a stuck query |
+| `app_build_info` | `version` | Which version is running |
+
+Go runtime (`go_*`) and process (`process_*`) metrics are included.
+
+Starting alerts:
+
+| Alert | Query |
+| --- | --- |
+| Server errors above 1% for 5m | `sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.01` |
+| Codes failing to send | `sum(rate(code_deliveries_total{result="error"}[10m])) > 0` |
+| Pool saturated | `max(db_pool_connections{state="acquired"}) / max(db_pool_max_connections) > 0.8` |
+| Core unhealthy | `sum(rate(supertokens_core_requests_total{code!~"2.."}[5m])) > 0` |
+| Code-send abuse | `sum(rate(rate_limited_total{limit="code_send"}[15m])) * 900 > 50` |
+
+Labels never hold user IDs, phones, emails or raw paths, so the number of series stays small.
+
 ## Rate limiting
 
 Every route except `/livez` and `/readyz` is limited per client IP (`RATE_LIMIT_CLIENT_IP`), with IPv6 grouped by /64. Routes that need a session are also limited per user (`RATE_LIMIT_USER`). Over either limit the API answers `429` with `Retry-After` and logs `rate limited` at warn level.
@@ -66,4 +103,4 @@ Sign-in code sends have their own stricter limits, shared by every instance thro
 
 ## Not yet in place
 
-- Metrics and tracing
+- Tracing

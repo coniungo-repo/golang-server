@@ -63,6 +63,7 @@ type Server struct {
 	RequestIDHeader   string
 	ClientIPHeader    string
 	MaxHeaderBytes    int
+	MetricsAddr       string
 }
 
 func (s Server) Addr() string {
