@@ -30,11 +30,11 @@ app ──► golang-server ──► SuperTokens core ──► supertokens dat
 | `user_identities` | Each verified way in: `phone` (E.164), `email` (lowercased) or `oidc` (`issuer|sub`), with its SuperTokens user ID |
 | `user_roles` | `customer`, `provider`, `admin` |
 | `admin_invites` | Staff emails allowed to sign in as admin, and who accepted each |
-| `admin_audit_log` | Every invite, revoke, suspend and reactivate, with who did it |
+| `admin_audit_log` | Every invite, revoke, suspend, reactivate and admin deletion, with who did it |
 
 On every sign-in the API resolves the SuperTokens user to our user and writes our user ID, roles, sign-in method and sign-in time into the session. Handlers read `auth.FromContext(ctx)` and never see SuperTokens IDs.
 
-Identities are never linked automatically. Admin identities are keyed on the provider's `sub`, not the email, so a renamed staff email keeps its account and a reissued address gets nothing without a new invite.
+Identities are never linked automatically, and never by matching addresses. A signed-in customer adds an email or phone by proving it with a code (see [Adding a sign-in method](#adding-a-sign-in-method)). Admin identities are keyed on the provider's `sub`, not the email, so a renamed staff email keeps its account and a reissued address gets nothing without a new invite.
 
 ## Endpoints
 
@@ -50,10 +50,16 @@ Use the SuperTokens frontend SDKs (web, React Native, iOS, Android). They call:
 | `GET` | `/auth/authorisationurl?thirdPartyId=staff` | Admin host only: start Google sign-in |
 | `POST` | `/auth/signinup` | Admin host only: finish Google sign-in (code exchange only) |
 | `GET` | `/api/v1/me` | The signed-in user's ID, roles and sign-in method |
+| `DELETE` | `/api/v1/me` | Delete the signed-in user's account |
+| `GET` | `/api/v1/me/identities` | The user's sign-in methods |
+| `POST` | `/api/v1/me/identities` | Send a code to a new `email` or `phone_number` |
+| `POST` | `/api/v1/me/identities/verify` | Check the code and add that email or phone to the account |
+| `DELETE` | `/api/v1/me/identities/{id}` | Remove a sign-in method other than the last |
 | `GET`, `POST` | `/api/v1/admin/invites` | List or create admin invites |
 | `POST` | `/api/v1/admin/invites/{id}/revoke` | Revoke an invite; removes admin access and signs them out |
 | `POST` | `/api/v1/admin/users/{id}/suspend` | Suspend a user and sign them out |
 | `POST` | `/api/v1/admin/users/{id}/reactivate` | Reactivate a user |
+| `DELETE` | `/api/v1/admin/users/{id}` | Delete a user's account |
 
 Browsers get cookies. Native apps send `st-auth-mode: header` and receive tokens in headers.
 
@@ -84,11 +90,31 @@ Data rules ("only your own listing") belong in each handler's SQL, scoped to `au
 
 Access tokens are checked by signature, so a revoked one still verifies until it expires. Three things close that gap:
 
-- `RequireSession` checks the user is active on every request, so suspension applies immediately.
+- `RequireSession` checks on every request that the user is active and still owns the SuperTokens user behind the session, so suspension, account deletion and removing a sign-in method apply immediately.
 - `RequireAdmin` also re-checks the admin role, so revoking an admin applies immediately.
 - The core issues 15-minute access tokens (`ACCESS_TOKEN_VALIDITY=900`). Role changes and sign-outs reach everything else within 15 minutes, because refresh fails once sessions are revoked.
 
 Revoke sessions (`auth.Service.RevokeUserSessions`) whenever you change someone's roles.
+
+## Adding a sign-in method
+
+A signed-in customer can add an email or phone to their account. Both steps run under `RequireSession`.
+
+1. `POST /api/v1/me/identities` with `{"email": "..."}` or `{"phone_number": "..."}`. The contact is normalised as at sign-in, refused with `409` if it is already on this account, rate limited with the sign-in policies, and sent the usual sign-in code. The response holds `device_id` and `pre_auth_session_id`.
+2. `POST /api/v1/me/identities/verify` with those two and `code`. The code is consumed in the core, which signs up or finds the passwordless user for that contact, and that user is linked to the current account in one transaction. The response lists the account's sign-in methods.
+
+The verify call marks its SuperTokens user context so the sign-in override does not create or resolve a customer for it. If the contact already belongs to another account, verify answers `409` with a message that names no one, and nothing changes; it is only checked after the code proves ownership, so the start step never reveals whether a contact is registered. Staff accounts can't add contacts: admin access stays behind Google sign-in.
+
+`DELETE /api/v1/me/identities/{id}` removes a method, revoking its sessions and deleting its SuperTokens user first, and refuses the last one. The removed contact is free again: signing in with it creates a new account.
+
+## Deleting accounts
+
+`auth.Service.DeleteAccount` is the one way to delete a user. In a transaction holding the user's row lock it revokes every session and deletes every SuperTokens user they sign in with, then deletes the `users` row, which cascades to identities and roles. If the core fails, nothing in our database changes and the call can be retried.
+
+- `DELETE /api/v1/me` deletes the signed-in user.
+- `DELETE /api/v1/admin/users/{id}` (permission `users:delete`) deletes someone else and writes `user.deleted` to `admin_audit_log`. Admins can't delete themselves there.
+
+Tables that reference `users.id` must say what happens on delete: `ON DELETE CASCADE` for data that belongs to the user, `ON DELETE SET NULL` for records that must outlive them.
 
 ## Admin sign-in
 
