@@ -126,7 +126,7 @@ Shown for staging; use the production files, app names and targets for productio
    ```
 
    The last command must show only the private address. Release any public one with `fly ips release`.
-3. Run migrations against the app database from your machine: open a tunnel with `fly proxy` to the database, then `DATABASE_URL=<tunnelled URL> make migrate`. The image has no migration tool.
+3. Migrations run on every API deploy (`release_command = "/migrate"` in `fly.<env>.toml`), before the new version takes traffic, so there is nothing to run by hand. A failed migration stops the deploy; `fly logs` shows why.
 4. Create the API, set its secrets and deploy it:
 
    ```bash

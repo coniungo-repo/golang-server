@@ -59,6 +59,13 @@ func TestFlyConfigsPassProductionValidation(t *testing.T) {
 	}
 	for _, path := range files {
 		t.Run(filepath.Base(path), func(t *testing.T) {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(raw), `release_command = "/migrate"`) {
+				t.Fatal(`[deploy] must run release_command = "/migrate", or new code can start against an old schema`)
+			}
 			env := flyEnv(t, path)
 			if _, ok := env["APP_ENV"]; ok {
 				t.Fatal("APP_ENV comes from the Dockerfile; do not override it in fly.toml")
