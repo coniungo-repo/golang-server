@@ -9,6 +9,7 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY cmd ./cmd
 COPY api ./api
 COPY internal ./internal
+COPY migrations ./migrations
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/...
@@ -19,6 +20,7 @@ ENV APP_ENV=production \
     APP_VERSION=${VERSION}
 COPY --from=build /out/api /api
 COPY --from=build /out/admin /admin
+COPY --from=build /out/migrate /migrate
 USER nonroot:nonroot
 EXPOSE 8080
-ENTRYPOINT ["/api"]
+CMD ["/api"]

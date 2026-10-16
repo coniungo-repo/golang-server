@@ -7,7 +7,6 @@ docs
 tmp
 bin
 deploy
-migrations
 queries
 Dockerfile
 .dockerignore

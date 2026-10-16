@@ -42,7 +42,7 @@ db-down:
 	$(COMPOSE) down
 
 migrate:
-	@$(ENV) $(TOOL) goose -dir migrations postgres "$$DATABASE_URL" up
+	@$(ENV) go run ./cmd/migrate
 
 migrate-down:
 	@$(ENV) $(TOOL) goose -dir migrations postgres "$$DATABASE_URL" down

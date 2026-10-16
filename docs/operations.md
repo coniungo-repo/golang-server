@@ -10,7 +10,9 @@ make docker VERSION=v1.2.3
 
 The image is a static binary on distroless, running as a non-root user with `APP_ENV=production`. Provide the variables in [configuration](configuration.md) through your platform's secret store, never in the image.
 
-Run `make migrate` against the target database before rolling out code that depends on a new migration. Migrations should be backward compatible with the version currently running.
+Migrations run automatically on Fly: `release_command = "/migrate"` applies every pending migration in a temporary machine before any machine starts the new version, and a failed migration stops the deploy. `/migrate` holds a Postgres advisory lock, so overlapping deploys can't migrate at once, and sets `lock_timeout=10s`, so a migration waiting on a busy table fails fast instead of stalling live queries behind it. Elsewhere, run `/migrate` from the image (or `make migrate`) before rolling out.
+
+Write migrations to be backward compatible with the version currently running, since it keeps serving while the new one rolls out. Add before you remove: a new column ships nullable or with a default, and the old one is dropped in a later deploy once nothing reads it.
 
 ## SuperTokens core
 
