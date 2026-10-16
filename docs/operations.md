@@ -2,6 +2,8 @@
 
 ## Build and deploy
 
+Before the first staging or production deploy, work through the [production checklist](production.md).
+
 ```bash
 make docker VERSION=v1.2.3
 ```
