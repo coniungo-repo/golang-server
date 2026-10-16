@@ -95,3 +95,20 @@ func TestRouterRateLimitsByClientIP(t *testing.T) {
 		t.Fatalf("another address in the same /64 got %d, want 429", got)
 	}
 }
+
+func TestStartupWarnings(t *testing.T) {
+	var cfg config.Config
+	cfg.App.Environment = config.Production
+	if len(startupWarnings(cfg)) != 1 {
+		t.Fatal("production without a client IP header should warn")
+	}
+	cfg.Server.ClientIPHeader = "Fly-Client-IP"
+	if len(startupWarnings(cfg)) != 0 {
+		t.Fatal("no warning expected once the header is set")
+	}
+	cfg.Server.ClientIPHeader = ""
+	cfg.App.Environment = config.Development
+	if len(startupWarnings(cfg)) != 0 {
+		t.Fatal("local development has no proxy, so no warning")
+	}
+}

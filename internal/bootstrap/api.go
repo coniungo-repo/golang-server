@@ -29,6 +29,10 @@ func RunAPI(ctx context.Context) error {
 		Version:      cfg.App.Version,
 	})
 
+	for _, w := range startupWarnings(cfg) {
+		log.Warn(w)
+	}
+
 	deps, err := newDependencies(logger.Into(ctx, log), cfg, log)
 	if err != nil {
 		log.Error("startup failed", "err", err)
@@ -54,4 +58,13 @@ func RunAPI(ctx context.Context) error {
 		return err
 	}
 	return httpserver.Run(ctx, cfg.Server, log, handler, deps.Health.Drain)
+}
+
+// startupWarnings flags settings that are valid but probably wrong for where the server runs.
+func startupWarnings(cfg config.Config) []string {
+	var out []string
+	if cfg.App.IsProduction() && cfg.Server.ClientIPHeader == "" {
+		out = append(out, "HTTP_CLIENT_IP_HEADER is empty: behind a proxy every user shares the proxy's IP and its rate limit. Set it to the proxy's client IP header, e.g. Fly-Client-IP")
+	}
+	return out
 }

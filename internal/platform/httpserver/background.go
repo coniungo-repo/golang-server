@@ -10,7 +10,12 @@ import (
 	"time"
 )
 
-const backgroundShutdown = 5 * time.Second
+const (
+	backgroundShutdown     = 5 * time.Second
+	backgroundReadTimeout  = 10 * time.Second
+	backgroundWriteTimeout = 30 * time.Second
+	backgroundIdleTimeout  = time.Minute
+)
 
 // ServeBackground listens on addr now, so a bad address fails startup, then serves handler until ctx is done. It is for internal endpoints such as metrics, never the public API.
 func ServeBackground(ctx context.Context, addr string, handler http.Handler, log *slog.Logger) (net.Addr, error) {
@@ -21,6 +26,9 @@ func ServeBackground(ctx context.Context, addr string, handler http.Handler, log
 	srv := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       backgroundReadTimeout,
+		WriteTimeout:      backgroundWriteTimeout,
+		IdleTimeout:       backgroundIdleTimeout,
 		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 	}
 	go func() {

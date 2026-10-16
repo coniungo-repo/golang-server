@@ -42,7 +42,7 @@ A second signal exits immediately.
 
 ## Logging
 
-Production logs are JSON on stdout, one line per request, with `request_id`, `route`, `status` and `duration`. Clients see the same `request_id` in the `X-Request-ID` header and in error bodies, so support reports can be matched to logs.
+Production logs are JSON on stdout, one line per request, with `request_id`, `route`, `status` and `duration`, plus `user_id` (our UUID, not a phone or email) once a session is verified. In production the server warns at startup if `HTTP_CLIENT_IP_HEADER` is empty. Clients see the same `request_id` in the `X-Request-ID` header and in error bodies, so support reports can be matched to logs.
 
 Keys containing `password`, `secret`, `token`, `authorization`, `cookie`, `api_key`, `private_key`, `dsn` or `database_url` are redacted. Wrap credentials in `config.Secret` regardless.
 
