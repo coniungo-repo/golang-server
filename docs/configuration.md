@@ -26,6 +26,7 @@ All configuration comes from environment variables. The server validates everyth
 | `HTTP_SHUTDOWN_TIMEOUT` | `15s` | Total time allowed for shutdown |
 | `HTTP_DRAIN_DELAY` | `0s` | Time `/readyz` reports 503 before connections close. Set to about 5s behind a load balancer |
 | `HTTP_CLIENT_IP_HEADER` | empty | Proxy header carrying the client IP, e.g. `Fly-Client-IP`, used for rate limiting. Only set behind a proxy that overwrites it |
+| `HTTP_MAX_HEADER_BYTES` | `65536` | Largest request header block, 4096 to 1048576 |
 | `HTTP_REQUEST_ID_HEADER` | empty | Reuse a proxy's request ID, e.g. `Fly-Request-Id`. Only set this when that proxy strips the header from clients |
 | `RATE_LIMIT_CLIENT_IP` | `600/1m` | Requests per client IP (IPv6 per /64) on every route but `/livez` and `/readyz`, as `limit/period` pairs. Up to 4 windows, each 1s to 168h. Per instance |
 | `RATE_LIMIT_USER` | `120/1m,3000/1h` | Requests per signed-in user on session routes, same format. Per instance |
@@ -38,12 +39,16 @@ All configuration comes from environment variables. The server validates everyth
 | `DB_MAX_CONNS` | `25` | 1 to 1000; at least 10 in production |
 | `DB_MIN_CONNS` | `2` | Connections kept open; at most `DB_MAX_CONNS` |
 | `DB_CONN_MAX_IDLE` | `15m` | |
+| `DB_CONNECT_TIMEOUT` | `5s` | Opening a connection, and the startup ping |
+| `DB_HEALTH_CHECK_PERIOD` | `1m` | How often the pool checks idle connections |
+| `DB_READY_TIMEOUT` | `2s` | The `/readyz` ping. Shorter than `HTTP_REQUEST_TIMEOUT` |
 
 ## Security
 
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `CORS_ALLOWED_ORIGINS` | local apps outside production, none in production | Comma-separated `scheme://host[:port]`. No wildcards, paths or trailing slashes |
+| `CORS_MAX_AGE` | `10m` | How long browsers may cache a preflight, at most `24h` |
 | `FINGERPRINT_SECRET` | required | At least 32 characters. Generate with `openssl rand -hex 32`. The example placeholder is rejected in production |
 
 ## Auth (SuperTokens)
@@ -86,6 +91,7 @@ Leave `OIDC_ISSUER` empty to disable admin sign-in.
 | `EMAIL_FROM` | empty | e.g. `"GetGbam <hello@getgbam.com>"` (quote it in `.env`). Required in production |
 | `SMS_PROVIDER` | `log` | As above |
 | `SMS_SENDER` | empty | Sender ID or number, as your provider requires |
+| `DELIVERY_TIMEOUT` | `10s` | Limit on each email or SMS send. Shorter than `HTTP_REQUEST_TIMEOUT` |
 
 ## Phone numbers
 
@@ -93,3 +99,19 @@ Leave `OIDC_ISSUER` empty to disable admin sign-in.
 | --- | --- | --- |
 | `PHONE_DEFAULT_REGION` | empty | ISO 3166-1 alpha-2 code, e.g. `NG`. Lets users omit the country code. Empty requires `+` |
 | `PHONE_ALLOWED_REGIONS` | all outside production, required in production | Comma-separated region codes to accept. Must include the default region. Only the countries you send codes to, since every code is a paid SMS |
+
+## Fixed in code
+
+These are deliberately not settings:
+
+| Value | Where | Why |
+| --- | --- | --- |
+| 1 MiB request body limit | `platform/request.MaxBodyBytes` | Part of the API contract in `api/openapi.yaml`; clients rely on it |
+| HSTS two years with subdomains, the other security headers | `platform/middleware/headers.go` | Security policy, not tuning |
+| Admin provider ID `staff`, OIDC scopes and `prompt=select_account` | `auth/admin_signin.go` | Frontend contract and sign-in security |
+| Rate limiter sweep (5m) and sign-in attempt pruning (1h) | `bootstrap/api.go` | Housekeeping; memory and table size do not depend on them meaningfully |
+| `/readyz` ping reuse (1s) | `health` | Protects the pool; no reason to vary |
+| Validation bounds (secret lengths, window counts, pool size) | `platform/config` | Guard rails on the settings themselves |
+| Messages and email/SMS copy | `auth`, `platform/phone` | Product copy, changed with code review |
+
+Code lifetime, code attempts and access token lifetime are settings of the SuperTokens core (`PASSWORDLESS_CODE_LIFETIME`, `PASSWORDLESS_MAX_CODE_INPUT_ATTEMPTS`, `ACCESS_TOKEN_VALIDITY`), not this API.

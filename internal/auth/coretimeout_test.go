@@ -46,7 +46,7 @@ func TestCoreCallsTimeOut(t *testing.T) {
 		Clock: clock.New(), Log: log, Phones: phones, Email: email.LogSender{Log: log}, SMS: sms.LogSender{Log: log},
 		Users:     users.New(nil, clock.New(), ""),
 		Limiter:   NewLimiter(nil, "secret", clock.New(), time.Hour),
-		UserLimit: ratelimit.New(clock.New(), nil),
+		UserLimit: ratelimit.New(clock.New(), nil), DeliveryTimeout: time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)

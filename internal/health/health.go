@@ -11,10 +11,7 @@ import (
 	"github.com/coniungo-repo/golang-server/internal/platform/route"
 )
 
-const (
-	pingTimeout = 2 * time.Second
-	pingTTL     = time.Second
-)
+const pingTTL = time.Second
 
 type Pinger interface {
 	Ping(ctx context.Context) error
@@ -22,17 +19,19 @@ type Pinger interface {
 
 // Probe serves liveness and readiness. Readiness fails once Drain is called, so load balancers stop routing before shutdown. The database ping is shared for pingTTL, so however often /readyz is called it holds at most one pool connection.
 type Probe struct {
-	db       Pinger
-	now      func() time.Time
-	draining atomic.Bool
+	db          Pinger
+	pingTimeout time.Duration
+	now         func() time.Time
+	draining    atomic.Bool
 
 	mu       sync.Mutex
 	pingedAt time.Time
 	pingErr  error
 }
 
-func New(db Pinger) *Probe {
-	return &Probe{db: db, now: time.Now}
+// New returns a Probe whose database ping gives up after pingTimeout.
+func New(db Pinger, pingTimeout time.Duration) *Probe {
+	return &Probe{db: db, pingTimeout: pingTimeout, now: time.Now}
 }
 
 func (p *Probe) Register(mux route.Mux) {
@@ -71,7 +70,7 @@ func (p *Probe) ping(ctx context.Context) error {
 	if !p.pingedAt.IsZero() && p.now().Sub(p.pingedAt) < pingTTL {
 		return p.pingErr
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), pingTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), p.pingTimeout)
 	defer cancel()
 	p.pingErr = p.db.Ping(ctx)
 	p.pingedAt = p.now()

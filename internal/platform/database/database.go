@@ -3,15 +3,9 @@ package database
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/jackc/pgx/v5/pgxpool"
-)
-
-const (
-	connectTimeout    = 5 * time.Second
-	healthCheckPeriod = time.Minute
 )
 
 // Open builds a pool from cfg and verifies it with a ping before returning.
@@ -24,15 +18,15 @@ func Open(ctx context.Context, cfg config.Database) (*pgxpool.Pool, error) {
 	poolCfg.MaxConns = cfg.MaxConns
 	poolCfg.MinConns = cfg.MinConns
 	poolCfg.MaxConnIdleTime = cfg.ConnMaxIdle
-	poolCfg.HealthCheckPeriod = healthCheckPeriod
-	poolCfg.ConnConfig.ConnectTimeout = connectTimeout
+	poolCfg.HealthCheckPeriod = cfg.HealthCheckPeriod
+	poolCfg.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating database pool: %w", err)
 	}
 
-	pingCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+	pingCtx, cancel := context.WithTimeout(ctx, cfg.ConnectTimeout)
 	defer cancel()
 
 	if err := pool.Ping(pingCtx); err != nil {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
@@ -24,17 +25,18 @@ import (
 )
 
 type Deps struct {
-	Config         config.Auth
-	Admin          config.Admin
-	Clock          clock.Clock
-	Users          *users.Service
-	ClientIPHeader string
-	Log            *slog.Logger
-	Phones         *phone.Validator
-	Email          email.Sender
-	SMS            sms.Sender
-	Limiter        *Limiter
-	UserLimit      *ratelimit.Limiter
+	Config          config.Auth
+	Admin           config.Admin
+	Clock           clock.Clock
+	Users           *users.Service
+	ClientIPHeader  string
+	Log             *slog.Logger
+	Phones          *phone.Validator
+	Email           email.Sender
+	SMS             sms.Sender
+	Limiter         *Limiter
+	UserLimit       *ratelimit.Limiter
+	DeliveryTimeout time.Duration
 }
 
 // Service is the initialised auth layer. SuperTokens keeps global state, so create one per process.
@@ -51,6 +53,9 @@ func New(d Deps) (*Service, error) {
 	limits := d.Config.RateLimits
 	if len(limits.Destination) == 0 || len(limits.ClientIP) == 0 {
 		return nil, errors.New("auth: destination and client IP rate limits are required")
+	}
+	if d.DeliveryTimeout <= 0 {
+		return nil, errors.New("auth: a delivery timeout is required")
 	}
 	if d.Config.CoreTimeout <= 0 {
 		return nil, errors.New("auth: a core timeout is required, since the SDK's calls ignore request deadlines")

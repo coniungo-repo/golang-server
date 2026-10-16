@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/logger"
 	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
@@ -59,7 +60,7 @@ func TestRequestIDTrustedHeader(t *testing.T) {
 
 func corsHandler(t *testing.T) http.Handler {
 	t.Helper()
-	mw, err := CORS([]string{"https://app.example.com"}, []string{"Content-Type"})
+	mw, err := CORS([]string{"https://app.example.com"}, []string{"Content-Type"}, 10*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,12 +98,15 @@ func TestCORS(t *testing.T) {
 			if got := rr.Header().Get("Access-Control-Allow-Origin"); got != tt.wantACAO {
 				t.Fatalf("ACAO %q, want %q", got, tt.wantACAO)
 			}
+			if tt.name == "allowed preflight" && rr.Header().Get("Access-Control-Max-Age") != "600" {
+				t.Fatalf("Max-Age %q, want 600", rr.Header().Get("Access-Control-Max-Age"))
+			}
 		})
 	}
 }
 
 func TestCORSRejectsInvalidOrigin(t *testing.T) {
-	if _, err := CORS([]string{"*"}, nil); err == nil {
+	if _, err := CORS([]string{"*"}, nil, time.Minute); err == nil {
 		t.Fatal("expected error for wildcard origin")
 	}
 }

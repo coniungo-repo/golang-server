@@ -19,6 +19,9 @@ const (
 	minProductionConns   = 10
 	minFingerprintLength = 32
 	minAuthAPIKeyLength  = 20
+	minHeaderBytes       = 4 << 10
+	maxHeaderBytes       = 1 << 20
+	maxCORSMaxAge        = 24 * time.Hour
 	placeholderPrefix    = "change-me"
 )
 
@@ -66,18 +69,23 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			RequestTimeout:    r.duration("HTTP_REQUEST_TIMEOUT", 20*time.Second),
 			RequestIDHeader:   r.string("HTTP_REQUEST_ID_HEADER", ""),
 			ClientIPHeader:    r.string("HTTP_CLIENT_IP_HEADER", ""),
+			MaxHeaderBytes:    r.int("HTTP_MAX_HEADER_BYTES", 64<<10),
 		},
 		Database: Database{
-			URL:         r.secret("DATABASE_URL"),
-			MaxConns:    r.int32("DB_MAX_CONNS", 25, 1, maxPoolConns),
-			MinConns:    r.int32("DB_MIN_CONNS", 2, 0, maxPoolConns),
-			ConnMaxIdle: r.duration("DB_CONN_MAX_IDLE", 15*time.Minute),
+			URL:               r.secret("DATABASE_URL"),
+			MaxConns:          r.int32("DB_MAX_CONNS", 25, 1, maxPoolConns),
+			MinConns:          r.int32("DB_MIN_CONNS", 2, 0, maxPoolConns),
+			ConnMaxIdle:       r.duration("DB_CONN_MAX_IDLE", 15*time.Minute),
+			ConnectTimeout:    r.duration("DB_CONNECT_TIMEOUT", 5*time.Second),
+			HealthCheckPeriod: r.duration("DB_HEALTH_CHECK_PERIOD", time.Minute),
+			ReadyTimeout:      r.duration("DB_READY_TIMEOUT", 2*time.Second),
 		},
 		Log: Log{
 			Level: r.logLevel("LOG_LEVEL", slog.LevelInfo),
 		},
 		CORS: CORS{
 			AllowedOrigins: r.list("CORS_ALLOWED_ORIGINS", localList(local, localWebsiteDomains...)),
+			MaxAge:         r.duration("CORS_MAX_AGE", 10*time.Minute),
 		},
 		Auth: Auth{
 			ConnectionURI:   r.string("SUPERTOKENS_CONNECTION_URI", localDefault(local, "http://localhost:3567")),
@@ -107,6 +115,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			EmailFrom:     r.string("EMAIL_FROM", ""),
 			SMSProvider:   r.string("SMS_PROVIDER", ProviderLog),
 			SMSSender:     r.string("SMS_SENDER", ""),
+			Timeout:       r.duration("DELIVERY_TIMEOUT", 10*time.Second),
 		},
 		Security: Security{
 			FingerprintSecret: r.secret("FINGERPRINT_SECRET"),
@@ -140,6 +149,18 @@ func validate(r *reader, c Config) {
 	}
 	if c.Server.RequestTimeout >= c.Server.WriteTimeout {
 		r.fail("HTTP_REQUEST_TIMEOUT", "must be shorter than HTTP_WRITE_TIMEOUT, so the error can still be sent")
+	}
+	if c.Server.MaxHeaderBytes < minHeaderBytes || c.Server.MaxHeaderBytes > maxHeaderBytes {
+		r.fail("HTTP_MAX_HEADER_BYTES", "must be between %d and %d", minHeaderBytes, maxHeaderBytes)
+	}
+	if c.Delivery.Timeout >= c.Server.RequestTimeout {
+		r.fail("DELIVERY_TIMEOUT", "must be shorter than HTTP_REQUEST_TIMEOUT, since codes are sent during the request")
+	}
+	if c.Database.ReadyTimeout >= c.Server.RequestTimeout {
+		r.fail("DB_READY_TIMEOUT", "must be shorter than HTTP_REQUEST_TIMEOUT")
+	}
+	if c.CORS.MaxAge > maxCORSMaxAge {
+		r.fail("CORS_MAX_AGE", "must be at most %s; browsers cap it lower anyway", maxCORSMaxAge)
 	}
 	if c.Auth.CoreTimeout >= c.Server.RequestTimeout {
 		r.fail("SUPERTOKENS_TIMEOUT", "must be shorter than HTTP_REQUEST_TIMEOUT, so a slow core still gets an error response")

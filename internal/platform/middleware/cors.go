@@ -4,20 +4,21 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/respond"
 )
 
 const (
 	corsMethods          = "GET, HEAD, POST, PUT, PATCH, DELETE"
-	corsMaxAge           = "600"
 	exposeHeaders        = "X-Request-ID, Retry-After, Idempotent-Replayed, Location"
 	foreignOriginMessage = "That came from a site we don't know. Please open the official app and try again."
 )
 
 // CORS lets the listed origins make credentialed calls and rejects cross-origin state-changing requests from anywhere else, using Origin and Sec-Fetch-Site.
-func CORS(origins, allowHeaders []string) (Middleware, error) {
+func CORS(origins, allowHeaders []string, maxAge time.Duration) (Middleware, error) {
 	csrf := http.NewCrossOriginProtection()
 	for _, o := range origins {
 		if err := csrf.AddTrustedOrigin(o); err != nil {
@@ -28,6 +29,7 @@ func CORS(origins, allowHeaders []string) (Middleware, error) {
 		respond.Error(w, r, http.StatusForbidden, foreignOriginMessage)
 	}))
 	joinedAllowHeaders := strings.Join(allowHeaders, ", ")
+	maxAgeSeconds := strconv.Itoa(int(maxAge.Seconds()))
 
 	return func(next http.Handler) http.Handler {
 		protected := csrf.Handler(next)
@@ -50,7 +52,7 @@ func CORS(origins, allowHeaders []string) (Middleware, error) {
 				if allowed {
 					h.Set("Access-Control-Allow-Methods", corsMethods)
 					h.Set("Access-Control-Allow-Headers", joinedAllowHeaders)
-					h.Set("Access-Control-Max-Age", corsMaxAge)
+					h.Set("Access-Control-Max-Age", maxAgeSeconds)
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return

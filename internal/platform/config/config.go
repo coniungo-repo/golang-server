@@ -62,6 +62,7 @@ type Server struct {
 	RequestTimeout    time.Duration
 	RequestIDHeader   string
 	ClientIPHeader    string
+	MaxHeaderBytes    int
 }
 
 func (s Server) Addr() string {
@@ -69,10 +70,13 @@ func (s Server) Addr() string {
 }
 
 type Database struct {
-	URL         Secret
-	MaxConns    int32
-	MinConns    int32
-	ConnMaxIdle time.Duration
+	URL               Secret
+	MaxConns          int32
+	MinConns          int32
+	ConnMaxIdle       time.Duration
+	ConnectTimeout    time.Duration
+	HealthCheckPeriod time.Duration
+	ReadyTimeout      time.Duration
 }
 
 type Auth struct {
@@ -114,6 +118,7 @@ type Log struct {
 
 type CORS struct {
 	AllowedOrigins []string
+	MaxAge         time.Duration
 }
 
 type Security struct {
@@ -132,6 +137,7 @@ type Delivery struct {
 	EmailFrom     string
 	SMSProvider   string
 	SMSSender     string
+	Timeout       time.Duration
 }
 
 // Admin configures staff sign-in through an OpenID Connect provider such as Google Workspace. An empty Issuer disables it.
