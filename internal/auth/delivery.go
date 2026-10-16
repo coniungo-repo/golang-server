@@ -18,8 +18,6 @@ import (
 	"github.com/supertokens/supertokens-golang/supertokens"
 )
 
-const deliveryTimeout = 10 * time.Second
-
 type codeData struct {
 	AppName string
 	Code    string
@@ -70,7 +68,7 @@ func (s *Service) sendEmail(input emaildelivery.EmailType, _ supertokens.UserCon
 	}
 	msg.HTML = html.String()
 
-	ctx, cancel := context.WithTimeout(context.Background(), deliveryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), s.deps.DeliveryTimeout)
 	defer cancel()
 	if err := s.deps.Email.Send(ctx, msg); err != nil {
 		return fmt.Errorf("auth: sending sign-in email: %w", err)
@@ -92,7 +90,7 @@ func (s *Service) sendSMS(input smsdelivery.SmsType, _ supertokens.UserContext) 
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), deliveryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), s.deps.DeliveryTimeout)
 	defer cancel()
 	if err := s.deps.SMS.Send(ctx, sms.Message{To: in.PhoneNumber, Body: body}); err != nil {
 		return fmt.Errorf("auth: sending sign-in sms: %w", err)

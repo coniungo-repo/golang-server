@@ -134,6 +134,10 @@ func TestLoadRejects(t *testing.T) {
 		{"request limit zero", map[string]string{"RATE_LIMIT_USER": "0/1m"}, "RATE_LIMIT_USER"},
 		{"core timeout too long", map[string]string{"SUPERTOKENS_TIMEOUT": "30s"}, "SUPERTOKENS_TIMEOUT"},
 		{"core timeout zero", map[string]string{"SUPERTOKENS_TIMEOUT": "0s"}, "SUPERTOKENS_TIMEOUT"},
+		{"header limit too small", map[string]string{"HTTP_MAX_HEADER_BYTES": "100"}, "HTTP_MAX_HEADER_BYTES"},
+		{"delivery timeout too long", map[string]string{"DELIVERY_TIMEOUT": "25s"}, "DELIVERY_TIMEOUT"},
+		{"ready timeout too long", map[string]string{"DB_READY_TIMEOUT": "1m"}, "DB_READY_TIMEOUT"},
+		{"cors max age too long", map[string]string{"CORS_MAX_AGE": "48h"}, "CORS_MAX_AGE"},
 		{"rate limit too many windows", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "1/1m,2/2m,3/3m,4/4m,5/5m"}, "more than 4"},
 		{"admin setting without issuer", map[string]string{"ADMIN_EMAIL_DOMAIN": "coniungolabs.com"}, "OIDC_ISSUER is empty"},
 		{"admin issuer missing client", map[string]string{"OIDC_ISSUER": "https://accounts.google.com"}, "OIDC_CLIENT_ID: is required"},
@@ -226,5 +230,28 @@ func TestRequestLimits(t *testing.T) {
 	}
 	if !slices.Equal(cfg.Limits.ClientIP, []RateWindow{{100, 10 * time.Second}, {1000, time.Hour}}) || !slices.Equal(cfg.Limits.User, []RateWindow{{30, time.Minute}}) {
 		t.Fatalf("got %+v", cfg.Limits)
+	}
+}
+
+func TestTunables(t *testing.T) {
+	cfg, err := LoadFrom(env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.MaxHeaderBytes != 64<<10 || cfg.Database.ConnectTimeout != 5*time.Second || cfg.Database.HealthCheckPeriod != time.Minute ||
+		cfg.Database.ReadyTimeout != 2*time.Second || cfg.CORS.MaxAge != 10*time.Minute || cfg.Delivery.Timeout != 10*time.Second {
+		t.Fatalf("unexpected defaults: server %+v db %+v cors %+v delivery %+v", cfg.Server, cfg.Database, cfg.CORS, cfg.Delivery)
+	}
+
+	cfg, err = LoadFrom(env(map[string]string{
+		"HTTP_MAX_HEADER_BYTES": "32768", "DB_CONNECT_TIMEOUT": "3s", "DB_HEALTH_CHECK_PERIOD": "30s",
+		"DB_READY_TIMEOUT": "1s", "CORS_MAX_AGE": "1h", "DELIVERY_TIMEOUT": "8s",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.MaxHeaderBytes != 32768 || cfg.Database.ConnectTimeout != 3*time.Second || cfg.Database.HealthCheckPeriod != 30*time.Second ||
+		cfg.Database.ReadyTimeout != time.Second || cfg.CORS.MaxAge != time.Hour || cfg.Delivery.Timeout != 8*time.Second {
+		t.Fatalf("overrides not applied: server %+v db %+v cors %+v delivery %+v", cfg.Server, cfg.Database, cfg.CORS, cfg.Delivery)
 	}
 }

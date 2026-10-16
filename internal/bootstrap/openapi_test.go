@@ -146,7 +146,7 @@ func resolves(root map[string]any, ref string) bool {
 
 func newProbe(t *testing.T) *health.Probe {
 	t.Helper()
-	return health.New(okPinger{})
+	return health.New(okPinger{}, time.Second)
 }
 
 func testAuthService(t *testing.T) *auth.Service {
@@ -172,8 +172,8 @@ func testAuthService(t *testing.T) *auth.Service {
 		Config: cfg.Auth, Admin: cfg.Admin, Clock: clock.New(), Log: log, Phones: phones,
 		Users:     users.New(nil, clock.New(), cfg.Admin.EmailDomain),
 		Limiter:   auth.NewLimiter(nil, "secret", clock.New(), time.Hour),
-		UserLimit: ratelimit.New(clock.New(), nil),
-		Email:     email.LogSender{Log: log}, SMS: sms.LogSender{Log: log},
+		UserLimit: ratelimit.New(clock.New(), nil), DeliveryTimeout: time.Second,
+		Email: email.LogSender{Log: log}, SMS: sms.LogSender{Log: log},
 	})
 	if err != nil {
 		t.Fatal(err)

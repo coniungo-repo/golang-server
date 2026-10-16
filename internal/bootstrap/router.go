@@ -44,7 +44,7 @@ func newRouter(deps *dependencies) (http.Handler, error) {
 		authPrefixes = append(authPrefixes, deps.Config.Auth.APIBasePath)
 	}
 
-	cors, err := middleware.CORS(deps.Config.CORS.AllowedOrigins, allowHeaders)
+	cors, err := middleware.CORS(deps.Config.CORS.AllowedOrigins, allowHeaders, deps.Config.CORS.MaxAge)
 	if err != nil {
 		return nil, err
 	}

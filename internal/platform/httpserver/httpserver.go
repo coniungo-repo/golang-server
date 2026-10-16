@@ -22,7 +22,7 @@ func Run(ctx context.Context, cfg config.Server, log *slog.Logger, handler http.
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
 		IdleTimeout:       cfg.IdleTimeout,
-		MaxHeaderBytes:    64 << 10,
+		MaxHeaderBytes:    cfg.MaxHeaderBytes,
 		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 		BaseContext: func(net.Listener) context.Context {
 			return logger.Into(context.Background(), log)

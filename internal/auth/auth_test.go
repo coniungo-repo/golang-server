@@ -53,11 +53,12 @@ func testService(t *testing.T) (*Service, *recorder) {
 	}
 	rec := &recorder{}
 	return &Service{deps: Deps{
-		Config: config.Auth{AppName: "GetGbam", WebsiteDomains: []string{"https://app.example.com", "https://pro.example.com"}},
-		Log:    slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Phones: phones,
-		Email:  rec,
-		SMS:    smsRecorder{rec},
+		Config:          config.Auth{AppName: "GetGbam", WebsiteDomains: []string{"https://app.example.com", "https://pro.example.com"}},
+		Log:             slog.New(slog.NewTextHandler(io.Discard, nil)),
+		DeliveryTimeout: time.Second,
+		Phones:          phones,
+		Email:           rec,
+		SMS:             smsRecorder{rec},
 	}}, rec
 }
 

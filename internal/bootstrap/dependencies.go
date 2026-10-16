@@ -60,17 +60,18 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 	userLimit := ratelimit.New(clk, cfg.Limits.User)
 
 	authService, err := auth.New(auth.Deps{
-		Config:         cfg.Auth,
-		Admin:          cfg.Admin,
-		Clock:          clk,
-		Users:          userService,
-		ClientIPHeader: cfg.Server.ClientIPHeader,
-		Log:            log,
-		Phones:         phones,
-		Email:          emailSender,
-		SMS:            smsSender,
-		Limiter:        limiter,
-		UserLimit:      userLimit,
+		Config:          cfg.Auth,
+		Admin:           cfg.Admin,
+		Clock:           clk,
+		Users:           userService,
+		ClientIPHeader:  cfg.Server.ClientIPHeader,
+		Log:             log,
+		Phones:          phones,
+		Email:           emailSender,
+		SMS:             smsSender,
+		Limiter:         limiter,
+		UserLimit:       userLimit,
+		DeliveryTimeout: cfg.Delivery.Timeout,
 	})
 	if err != nil {
 		pool.Close()
@@ -82,7 +83,7 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 		Log:       log,
 		DB:        pool,
 		Clock:     clk,
-		Health:    health.New(pool),
+		Health:    health.New(pool, cfg.Database.ReadyTimeout),
 		Phone:     phones,
 		Email:     emailSender,
 		SMS:       smsSender,

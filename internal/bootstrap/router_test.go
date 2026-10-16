@@ -22,7 +22,7 @@ func testRouter(t *testing.T) http.Handler {
 	t.Helper()
 	var cfg config.Config
 	cfg.Server.RequestTimeout = time.Second
-	h, err := newRouter(&dependencies{Config: cfg, Health: health.New(okPinger{})})
+	h, err := newRouter(&dependencies{Config: cfg, Health: health.New(okPinger{}, time.Second)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestRouterRateLimitsByClientIP(t *testing.T) {
 	var cfg config.Config
 	cfg.Server.RequestTimeout = time.Second
 	limit := ratelimit.New(clock.New(), []config.RateWindow{{Limit: 3, Period: time.Hour}})
-	h, err := newRouter(&dependencies{Config: cfg, Health: health.New(okPinger{}), IPLimit: limit})
+	h, err := newRouter(&dependencies{Config: cfg, Health: health.New(okPinger{}, time.Second), IPLimit: limit})
 	if err != nil {
 		t.Fatal(err)
 	}

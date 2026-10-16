@@ -25,12 +25,12 @@ func probeStatus(t *testing.T, p *Probe, path string) int {
 }
 
 func TestProbe(t *testing.T) {
-	healthy := New(pinger{})
+	healthy := New(pinger{}, time.Second)
 	if probeStatus(t, healthy, "/livez") != 200 || probeStatus(t, healthy, "/readyz") != 200 {
 		t.Fatal("healthy probe should pass")
 	}
 
-	down := New(pinger{err: errors.New("down")})
+	down := New(pinger{err: errors.New("down")}, time.Second)
 	if probeStatus(t, down, "/livez") != 200 || probeStatus(t, down, "/readyz") != 503 {
 		t.Fatal("database outage should fail readiness only")
 	}
@@ -54,7 +54,7 @@ func (p *countingPinger) Ping(context.Context) error {
 
 func TestReadyzSharesThePing(t *testing.T) {
 	db := &countingPinger{}
-	p := New(db)
+	p := New(db, time.Second)
 	now := time.Unix(0, 0)
 	var mu sync.Mutex
 	p.now = func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
