@@ -62,8 +62,8 @@ store(n.E164())
 | `auth` | SuperTokens passwordless and sessions, code delivery, rate limiting. See [auth](auth.md) |
 | `users` | Users, identities, roles, admin invites and the audit log |
 | `store` | sqlc-generated queries |
-| `platform/email` | Email `Sender` interface, address normalisation, log provider |
-| `platform/sms` | SMS `Sender` interface, log provider |
+| `platform/email` | Email `Sender` interface, address normalisation, Postmark and log providers |
+| `platform/sms` | SMS `Sender` interface, Termii and log providers |
 | `platform/phone` | Phone number parsing, policy and masking |
 | `platform/request` | Strict JSON decoding |
 | `platform/respond` | JSON responses and error mapping |

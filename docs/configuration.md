@@ -87,10 +87,15 @@ Leave `OIDC_ISSUER` empty to disable admin sign-in.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `EMAIL_PROVIDER` | `log` | `log` prints codes to the console and is rejected in production |
-| `EMAIL_FROM` | empty | e.g. `"GetGbam <hello@getgbam.com>"` (quote it in `.env`). Required in production |
-| `SMS_PROVIDER` | `log` | As above |
-| `SMS_SENDER` | empty | Sender ID or number, as your provider requires |
+| `EMAIL_PROVIDER` | `log` | `postmark`, or `log`, which prints codes to the console and is rejected in production |
+| `EMAIL_FROM` | empty | e.g. `"GetGbam <hello@getgbam.com>"` (quote it in `.env`). On a domain verified in Postmark. Required in production and with `postmark` |
+| `POSTMARK_SERVER_TOKEN` | empty | Server API token. Required with `postmark` |
+| `POSTMARK_MESSAGE_STREAM` | `outbound` | Postmark's default transactional stream |
+| `SMS_PROVIDER` | `log` | `termii`, or `log` as above |
+| `SMS_SENDER` | empty | Termii sender ID: 3 to 11 letters, digits or spaces, approved by Termii, e.g. `GetGbam` |
+| `TERMII_API_KEY` | empty | Required with `termii` |
+| `TERMII_BASE_URL` | empty | Your account's API base URL from the Termii dashboard, https. Required with `termii` |
+| `TERMII_CHANNEL` | `dnd` | `dnd` reaches numbers on Do-Not-Disturb and must be enabled by Termii support; `generic` is for promotions and is refused in production |
 | `DELIVERY_TIMEOUT` | `10s` | Limit on each email or SMS send. Shorter than `HTTP_REQUEST_TIMEOUT` |
 
 ## Phone numbers

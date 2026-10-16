@@ -165,11 +165,19 @@ The core separately locks a code after 5 wrong attempts, and codes expire after 
 
 ## Delivery
 
-`platform/email` and `platform/sms` define a `Sender` interface. The only provider today is `log`, which prints codes to the console for local work. Production refuses to start with it.
+`platform/email` and `platform/sms` define a `Sender` interface. Codes go by SMS to Nigerian numbers and by email to everyone else.
+
+| Channel | Provider | Notes |
+| --- | --- | --- |
+| Email | `postmark` (`platform/email/postmark.go`) | Default transactional stream. Set up SPF, DKIM and DMARC for the `EMAIL_FROM` domain |
+| SMS | `termii` (`platform/sms/termii.go`) | The `dnd` channel, so codes reach numbers on Do-Not-Disturb, from an approved sender ID |
+| Both | `log` | Prints codes to the console for local work. Production refuses to start with it |
+
+Provider errors become `500`s and are logged with the HTTP status and the provider's error code only: never the recipient, the code or the key.
 
 To add a provider:
 
-1. Implement `Send(ctx, Message) error` in a new file, e.g. `platform/sms/termii.go`. Respect `ctx`, which carries a 10-second timeout.
+1. Implement `Send(ctx, Message) error` in a new file. Respect `ctx`, which carries `DELIVERY_TIMEOUT`, and keep recipients, codes and keys out of errors.
 2. Add its name to `emailProviders` or `smsProviders` in `platform/config/load.go`, along with any settings it needs (keys as `Secret`).
 3. Return it from `newEmailSender` or `newSMSSender` in `internal/bootstrap/dependencies.go`.
 
