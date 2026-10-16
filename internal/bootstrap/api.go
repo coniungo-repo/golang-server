@@ -66,5 +66,8 @@ func startupWarnings(cfg config.Config) []string {
 	if cfg.App.IsProduction() && cfg.Server.ClientIPHeader == "" {
 		out = append(out, "HTTP_CLIENT_IP_HEADER is empty: behind a proxy every user shares the proxy's IP and its rate limit. Set it to the proxy's client IP header, e.g. Fly-Client-IP")
 	}
+	if cfg.App.IsProduction() && cfg.Security.BotCheck == config.BotCheckOff {
+		out = append(out, "BOT_CHECK is off: anyone can script code requests, and every phone code is a paid text. Turn on Turnstile once your apps send its token")
+	}
 	return out
 }

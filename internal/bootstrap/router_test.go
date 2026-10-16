@@ -99,12 +99,14 @@ func TestRouterRateLimitsByClientIP(t *testing.T) {
 func TestStartupWarnings(t *testing.T) {
 	var cfg config.Config
 	cfg.App.Environment = config.Production
-	if len(startupWarnings(cfg)) != 1 {
-		t.Fatal("production without a client IP header should warn")
+	cfg.Security.BotCheck = config.BotCheckOff
+	if len(startupWarnings(cfg)) != 2 {
+		t.Fatal("production without a client IP header and with the bot check off should warn twice")
 	}
 	cfg.Server.ClientIPHeader = "Fly-Client-IP"
+	cfg.Security.BotCheck = config.BotCheckTurnstile
 	if len(startupWarnings(cfg)) != 0 {
-		t.Fatal("no warning expected once the header is set")
+		t.Fatal("no warning expected once the header is set and the bot check is on")
 	}
 	cfg.Server.ClientIPHeader = ""
 	cfg.App.Environment = config.Development

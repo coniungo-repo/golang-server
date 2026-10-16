@@ -23,6 +23,8 @@ const (
 	LimitClientIP = "client_ip"
 	LimitUser     = "user"
 	LimitCodeSend = "code_send"
+
+	BotCheckFailed = "failed"
 )
 
 var knownMethods = map[string]bool{
@@ -41,6 +43,7 @@ type Metrics struct {
 	coreDuration     *prometheus.HistogramVec
 	smsTotalCounted  prometheus.Counter
 	smsTotalLimit    *prometheus.GaugeVec
+	botChecks        *prometheus.CounterVec
 }
 
 // New registers the API metrics plus Go runtime and process metrics. version is exposed as app_build_info.
@@ -70,6 +73,9 @@ func New(version string) *Metrics {
 		smsTotalCounted: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "sms_total_counted_total", Help: "Texts to numbers without an account, which count toward AUTH_RATE_LIMIT_SMS_TOTAL.",
 		}),
+		botChecks: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "bot_checks_total", Help: "Bot checks before code sends: ok, failed (no or bad token) or error (Turnstile unreachable; the send was refused).",
+		}, []string{"result"}),
 		smsTotalLimit: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "sms_total_limit", Help: "The AUTH_RATE_LIMIT_SMS_TOTAL ceiling for each window, for alerts on how close texts are to it.",
 		}, []string{"window"}),
@@ -84,7 +90,7 @@ func New(version string) *Metrics {
 	build.Set(1)
 	m.registry.MustRegister(
 		m.httpRequests, m.httpDuration, m.rateLimited, m.deliveries, m.deliveryDuration, m.coreRequests, m.coreDuration,
-		m.smsTotalCounted, m.smsTotalLimit, build,
+		m.smsTotalCounted, m.smsTotalLimit, m.botChecks, build,
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
@@ -114,6 +120,14 @@ func (m *Metrics) RateLimited(limit string) {
 		return
 	}
 	m.rateLimited.WithLabelValues(limit).Inc()
+}
+
+// BotCheck counts one bot check by result: ResultOK, BotCheckFailed or ResultError.
+func (m *Metrics) BotCheck(result string) {
+	if m == nil {
+		return
+	}
+	m.botChecks.WithLabelValues(result).Inc()
 }
 
 // SMSTotalCounted counts a text that counted toward the SMS total.

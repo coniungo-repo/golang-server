@@ -24,6 +24,7 @@ var flySecrets = map[string]string{
 	"POSTMARK_SERVER_TOKEN": "server-token",
 	"TERMII_API_KEY":        "termii-key",
 	"TERMII_BASE_URL":       "https://api.ng.termii.com",
+	"TURNSTILE_SECRET_KEY":  "0x4AAAAAAAreal-secret-from-cloudflare",
 }
 
 func flyEnv(t *testing.T, path string) map[string]string {

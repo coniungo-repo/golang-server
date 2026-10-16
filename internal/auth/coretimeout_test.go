@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coniungo-repo/golang-server/internal/platform/botcheck"
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
@@ -46,7 +47,7 @@ func TestCoreCallsTimeOut(t *testing.T) {
 		Clock: clock.New(), Log: log, Phones: phones, Email: email.LogSender{Log: log}, SMS: sms.LogSender{Log: log},
 		Users:     users.New(nil, clock.New(), ""),
 		Limiter:   NewLimiter(nil, "secret", clock.New(), time.Hour),
-		UserLimit: ratelimit.New(clock.New(), nil), DeliveryTimeout: time.Second,
+		UserLimit: ratelimit.New(clock.New(), nil), DeliveryTimeout: time.Second, BotCheck: botcheck.Off{}, BotCheckTimeout: time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)
