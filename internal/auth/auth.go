@@ -7,11 +7,13 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
+	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
 	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/supertokens/supertokens-golang/recipe/passwordless"
@@ -85,9 +87,19 @@ func New(d Deps) (*Service, error) {
 	return s, nil
 }
 
-// Middleware serves the SuperTokens routes under the API base path and passes everything else to next.
+// Middleware serves the SuperTokens routes under the API base path and passes everything else to next. Error bodies on those routes carry the request ID.
 func (s *Service) Middleware(next http.Handler) http.Handler {
-	return supertokens.Middleware(next)
+	st := supertokens.Middleware(next)
+	base := s.deps.Config.APIBasePath
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, base) {
+			st.ServeHTTP(w, r)
+			return
+		}
+		ew := &errorWriter{ResponseWriter: w}
+		st.ServeHTTP(ew, r)
+		ew.finish(requestid.From(r.Context()))
+	})
 }
 
 // CORSHeaders lists the request headers SuperTokens frontends send.
