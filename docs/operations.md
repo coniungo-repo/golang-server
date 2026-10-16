@@ -21,6 +21,8 @@ Deploy the core alongside the API on a private network, pointed at its own `supe
 | `GET /livez` | Liveness | The process can't serve HTTP |
 | `GET /readyz` | Readiness | Postgres is unreachable or the server is draining |
 
+`/readyz` shares one database ping per second across all callers, so frequent checks (or a flood, since health probes are exempt from rate limiting) never hold more than one pool connection.
+
 Point restarts at `/livez` only. A database outage should take instances out of rotation, not restart them.
 
 ## Shutdown

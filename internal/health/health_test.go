@@ -5,7 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type pinger struct{ err error }
@@ -35,5 +38,45 @@ func TestProbe(t *testing.T) {
 	healthy.Drain()
 	if probeStatus(t, healthy, "/readyz") != 503 {
 		t.Fatal("draining probe should fail readiness")
+	}
+}
+
+type countingPinger struct {
+	calls atomic.Int64
+	err   error
+}
+
+func (p *countingPinger) Ping(context.Context) error {
+	p.calls.Add(1)
+	time.Sleep(5 * time.Millisecond)
+	return p.err
+}
+
+func TestReadyzSharesThePing(t *testing.T) {
+	db := &countingPinger{}
+	p := New(db)
+	now := time.Unix(0, 0)
+	var mu sync.Mutex
+	p.now = func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Go(func() {
+			if got := probeStatus(t, p, "/readyz"); got != 200 {
+				t.Errorf("status %d", got)
+			}
+		})
+	}
+	wg.Wait()
+	if n := db.calls.Load(); n != 1 {
+		t.Fatalf("50 concurrent probes pinged %d times, want 1", n)
+	}
+
+	mu.Lock()
+	now = now.Add(pingTTL)
+	mu.Unlock()
+	db.err = errors.New("down")
+	if got := probeStatus(t, p, "/readyz"); got != 503 || db.calls.Load() != 2 {
+		t.Fatalf("after the ttl: status %d, pings %d; want a fresh failing ping", got, db.calls.Load())
 	}
 }
