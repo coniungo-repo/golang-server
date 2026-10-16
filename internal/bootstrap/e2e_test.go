@@ -40,6 +40,12 @@ func (s *syncBuffer) Write(p []byte) (int, error) {
 	return s.b.Write(p)
 }
 
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
 func (s *syncBuffer) lastCode(t *testing.T) string {
 	t.Helper()
 	s.mu.Lock()
@@ -50,6 +56,8 @@ func (s *syncBuffer) lastCode(t *testing.T) string {
 	}
 	return m[len(m)-1][1]
 }
+
+type rawBody string
 
 type client struct {
 	t    *testing.T
@@ -65,9 +73,13 @@ type result struct {
 func (c client) do(method, path, host, token string, body any) result {
 	c.t.Helper()
 	var r io.Reader
-	if body != nil {
-		b, _ := json.Marshal(body)
-		r = bytes.NewReader(b)
+	switch b := body.(type) {
+	case nil:
+	case rawBody:
+		r = strings.NewReader(string(b))
+	default:
+		raw, _ := json.Marshal(b)
+		r = bytes.NewReader(raw)
 	}
 	req, _ := http.NewRequest(method, c.base+path, r)
 	req.Header.Set("Content-Type", "application/json")
@@ -230,6 +242,29 @@ func TestAuthEndToEnd(t *testing.T) {
 		}
 		if uid, _ := me.body["user_id"].(string); len(uid) != 36 {
 			t.Fatalf("user_id should be our UUID, got %q", uid)
+		}
+	})
+
+	t.Run("malformed auth requests are client errors", func(t *testing.T) {
+		cases := []struct {
+			path, host string
+			body       rawBody
+			want       string
+		}{
+			{"/auth/signinup/code/consume", "", "not json", "body contains badly-formed JSON (at character 2)"},
+			{"/auth/signinup/code", "", "", "body must not be empty"},
+			{"/auth/signinup/code", "", "[]", "body must be a JSON object"},
+			{"/auth/signinup/code/consume", "", "{}", "Please provide preAuthSessionId"},
+			{"/auth/signinup", adminHost, `{"thirdPartyId":1}`, `body contains the wrong type for field "thirdPartyId"`},
+		}
+		for _, tc := range cases {
+			got := c.do("POST", tc.path, tc.host, "", tc.body)
+			if got.status != 400 || got.body["message"] != tc.want {
+				t.Errorf("%s %q: %d %v, want 400 %q", tc.path, tc.body, got.status, got.body, tc.want)
+			}
+		}
+		if strings.Contains(logs.String(), "auth request failed") {
+			t.Fatal("client mistakes were logged as server errors")
 		}
 	})
 

@@ -39,7 +39,7 @@ func Decode(w http.ResponseWriter, r *http.Request, dst any) error {
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(dst); err != nil {
-		return decodeError(err)
+		return DecodeError(err)
 	}
 	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return badRequest("body must only contain a single JSON value")
@@ -47,7 +47,8 @@ func Decode(w http.ResponseWriter, r *http.Request, dst any) error {
 	return nil
 }
 
-func decodeError(err error) error {
+// DecodeError turns a JSON decoding or body read error into *Error, and returns other errors unchanged.
+func DecodeError(err error) error {
 	var syntaxErr *json.SyntaxError
 	var typeErr *json.UnmarshalTypeError
 	var maxErr *http.MaxBytesError
