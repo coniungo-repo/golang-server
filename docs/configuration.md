@@ -57,6 +57,7 @@ All configuration comes from environment variables. The server validates everyth
 | `SUPERTOKENS_API_BASE_PATH` | `/auth` | Where the auth routes are mounted |
 | `SUPERTOKENS_WEBSITE_DOMAINS` | local apps outside production | Comma-separated frontend origins. Each must also be in `CORS_ALLOWED_ORIGINS`. https in production |
 | `SUPERTOKENS_WEBSITE_BASE_PATH` | `/auth` | Frontend auth route |
+| `SUPERTOKENS_TIMEOUT` | `5s` | Limit on each call to the core. The SDK ignores request deadlines, so this is what stops a hung core from holding requests and database locks. Must be shorter than `HTTP_REQUEST_TIMEOUT` |
 
 | `AUTH_RATE_LIMIT_DESTINATION` | `5/15m,15/24h` | Code sends per email or phone, as `limit/period` pairs. Up to 4 windows, each 1s to 168h |
 | `AUTH_RATE_LIMIT_CLIENT_IP` | `30/1h,100/24h` | Code sends per client IP, same format |

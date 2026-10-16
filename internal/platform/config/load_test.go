@@ -130,6 +130,8 @@ func TestLoadRejects(t *testing.T) {
 		{"rate limit repeated period", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "5/15m,10/15m"}, "repeats the period"},
 		{"request limit garbage", map[string]string{"RATE_LIMIT_CLIENT_IP": "fast"}, "RATE_LIMIT_CLIENT_IP"},
 		{"request limit zero", map[string]string{"RATE_LIMIT_USER": "0/1m"}, "RATE_LIMIT_USER"},
+		{"core timeout too long", map[string]string{"SUPERTOKENS_TIMEOUT": "30s"}, "SUPERTOKENS_TIMEOUT"},
+		{"core timeout zero", map[string]string{"SUPERTOKENS_TIMEOUT": "0s"}, "SUPERTOKENS_TIMEOUT"},
 		{"rate limit too many windows", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "1/1m,2/2m,3/3m,4/4m,5/5m"}, "more than 4"},
 		{"admin setting without issuer", map[string]string{"ADMIN_EMAIL_DOMAIN": "coniungolabs.com"}, "OIDC_ISSUER is empty"},
 		{"admin issuer missing client", map[string]string{"OIDC_ISSUER": "https://accounts.google.com"}, "OIDC_CLIENT_ID: is required"},

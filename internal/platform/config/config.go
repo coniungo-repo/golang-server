@@ -83,6 +83,7 @@ type Auth struct {
 	APIBasePath     string
 	WebsiteDomains  []string
 	WebsiteBasePath string
+	CoreTimeout     time.Duration
 	RateLimits      RateLimits
 }
 

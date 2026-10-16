@@ -87,6 +87,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			APIBasePath:     r.path("SUPERTOKENS_API_BASE_PATH", "/auth"),
 			WebsiteDomains:  r.list("SUPERTOKENS_WEBSITE_DOMAINS", localList(local, localWebsiteDomains...)),
 			WebsiteBasePath: r.path("SUPERTOKENS_WEBSITE_BASE_PATH", "/auth"),
+			CoreTimeout:     r.duration("SUPERTOKENS_TIMEOUT", 5*time.Second),
 			RateLimits: RateLimits{
 				Destination: r.rateWindows("AUTH_RATE_LIMIT_DESTINATION", defaultDestinationLimits),
 				ClientIP:    r.rateWindows("AUTH_RATE_LIMIT_CLIENT_IP", defaultClientIPLimits),
@@ -139,6 +140,9 @@ func validate(r *reader, c Config) {
 	}
 	if c.Server.RequestTimeout >= c.Server.WriteTimeout {
 		r.fail("HTTP_REQUEST_TIMEOUT", "must be shorter than HTTP_WRITE_TIMEOUT, so the error can still be sent")
+	}
+	if c.Auth.CoreTimeout >= c.Server.RequestTimeout {
+		r.fail("SUPERTOKENS_TIMEOUT", "must be shorter than HTTP_REQUEST_TIMEOUT, so a slow core still gets an error response")
 	}
 	if c.Server.DrainDelay >= c.Server.ShutdownTimeout {
 		r.fail("HTTP_DRAIN_DELAY", "must be shorter than HTTP_SHUTDOWN_TIMEOUT")
