@@ -59,6 +59,7 @@ store(n.E164())
 | `platform/database` | pgx pool with startup ping |
 | `platform/httpserver` | Server lifecycle and graceful shutdown |
 | `platform/middleware` | The chain above |
+| `platform/metrics` | Prometheus metrics in a private registry, served on `METRICS_ADDR` |
 | `auth` | SuperTokens passwordless and sessions, code delivery, rate limiting. See [auth](auth.md) |
 | `users` | Users, identities, roles, admin invites and the audit log |
 | `store` | sqlc-generated queries |

@@ -13,6 +13,7 @@ import (
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
+	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
 	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
@@ -37,6 +38,7 @@ type Deps struct {
 	Limiter         *Limiter
 	UserLimit       *ratelimit.Limiter
 	DeliveryTimeout time.Duration
+	Metrics         *metrics.Metrics
 }
 
 // Service is the initialised auth layer. SuperTokens keeps global state, so create one per process.
@@ -94,7 +96,7 @@ func New(d Deps) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	supertokens.SetHTTPClient(&http.Client{Timeout: d.Config.CoreTimeout})
+	supertokens.SetHTTPClient(&http.Client{Timeout: d.Config.CoreTimeout, Transport: d.Metrics.CoreTransport(http.DefaultTransport)})
 	return s, nil
 }
 

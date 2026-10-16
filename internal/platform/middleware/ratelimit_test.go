@@ -3,18 +3,21 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
+	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
 	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/respond"
 )
 
 func TestRateLimit(t *testing.T) {
 	l := ratelimit.New(clock.NewMock(time.Unix(0, 0)), []config.RateWindow{{Limit: 2, Period: time.Minute}})
-	h := RateLimit("test", l, func(r *http.Request) string { return r.Header.Get("X-Key") })(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	m := metrics.New("test")
+	h := RateLimit("test", l, func(r *http.Request) string { return r.Header.Get("X-Key") }, m)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	do := func(key string) *httptest.ResponseRecorder {
@@ -33,6 +36,9 @@ func TestRateLimit(t *testing.T) {
 	rr := do("a")
 	if rr.Code != http.StatusTooManyRequests || rr.Header().Get("Retry-After") != "30" || rr.Header().Get("Content-Type") != respond.ContentTypeJSON {
 		t.Fatalf("got %d, Retry-After %q, Content-Type %q", rr.Code, rr.Header().Get("Retry-After"), rr.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(scrapeMetrics(t, m), `rate_limited_total{limit="test"} 1`) {
+		t.Fatal("refusal not counted")
 	}
 	if rr := do("b"); rr.Code != http.StatusNoContent {
 		t.Fatalf("another key got %d", rr.Code)

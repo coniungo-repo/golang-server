@@ -145,6 +145,8 @@ func TestLoadRejects(t *testing.T) {
 		{"termii long sender", map[string]string{"SMS_PROVIDER": "termii", "TERMII_API_KEY": "k", "TERMII_BASE_URL": "https://api.ng.termii.com", "SMS_SENDER": "GetGbamServices"}, "SMS_SENDER"},
 		{"termii whatsapp channel", map[string]string{"SMS_PROVIDER": "termii", "TERMII_API_KEY": "k", "TERMII_BASE_URL": "https://api.ng.termii.com", "SMS_SENDER": "GetGbam", "TERMII_CHANNEL": "whatsapp"}, "TERMII_CHANNEL"},
 		{"prod termii generic channel", prodEnv(map[string]string{"EMAIL_PROVIDER": "postmark", "POSTMARK_SERVER_TOKEN": "t", "SMS_PROVIDER": "termii", "TERMII_API_KEY": "k", "TERMII_BASE_URL": "https://api.ng.termii.com", "SMS_SENDER": "GetGbam", "TERMII_CHANNEL": "generic"}), "TERMII_CHANNEL: must be dnd in production"},
+		{"metrics addr garbage", map[string]string{"METRICS_ADDR": "9091"}, "METRICS_ADDR"},
+		{"metrics on the api port", map[string]string{"METRICS_ADDR": ":8080"}, "METRICS_ADDR: must use a different port"},
 		{"rate limit too many windows", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "1/1m,2/2m,3/3m,4/4m,5/5m"}, "more than 4"},
 		{"admin setting without issuer", map[string]string{"ADMIN_EMAIL_DOMAIN": "coniungolabs.com"}, "OIDC_ISSUER is empty"},
 		{"admin issuer missing client", map[string]string{"OIDC_ISSUER": "https://accounts.google.com"}, "OIDC_CLIENT_ID: is required"},

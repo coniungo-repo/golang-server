@@ -585,4 +585,24 @@ func TestAuthEndToEnd(t *testing.T) {
 			t.Fatalf("another user from the same IP got %d", other)
 		}
 	})
+
+	t.Run("metrics reflect the traffic", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		deps.Metrics.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		body := rr.Body.String()
+		for _, want := range []string{
+			`http_requests_total{method="GET",route="GET /api/v1/me",status="200"}`,
+			`http_requests_total{method="POST",route="/auth/*",status="200"}`,
+			`rate_limited_total{limit="user"}`,
+			`code_deliveries_total{channel="sms",result="ok"}`,
+			`code_deliveries_total{channel="email",result="ok"}`,
+			`supertokens_core_requests_total{code="200"}`,
+			`db_pool_connections{state="idle"}`,
+			`db_pool_max_connections`,
+		} {
+			if !strings.Contains(body, want) {
+				t.Errorf("missing %q", want)
+			}
+		}
+	})
 }

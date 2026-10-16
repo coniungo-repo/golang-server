@@ -11,6 +11,7 @@ import (
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/database"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
+	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
 	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
@@ -30,6 +31,7 @@ type dependencies struct {
 	Limiter   *auth.Limiter
 	IPLimit   *ratelimit.Limiter
 	UserLimit *ratelimit.Limiter
+	Metrics   *metrics.Metrics
 	Users     *users.Service
 	Auth      *auth.Service
 }
@@ -54,6 +56,10 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 	}
 
 	clk := clock.New()
+	m := metrics.New(cfg.App.Version)
+	m.RegisterPool(pool)
+	emailSender = m.Email(emailSender)
+	smsSender = m.SMS(smsSender)
 	limiter := auth.NewLimiter(pool, cfg.Security.FingerprintSecret.Reveal(), clk, cfg.Auth.RateLimits.Retention())
 	userService := users.New(pool, clk, cfg.Admin.EmailDomain)
 	ipLimit := ratelimit.New(clk, cfg.Limits.ClientIP)
@@ -72,6 +78,7 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 		Limiter:         limiter,
 		UserLimit:       userLimit,
 		DeliveryTimeout: cfg.Delivery.Timeout,
+		Metrics:         m,
 	})
 	if err != nil {
 		pool.Close()
@@ -90,6 +97,7 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 		Limiter:   limiter,
 		IPLimit:   ipLimit,
 		UserLimit: userLimit,
+		Metrics:   m,
 		Users:     userService,
 		Auth:      authService,
 	}, nil

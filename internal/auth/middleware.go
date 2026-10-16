@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
 	"github.com/coniungo-repo/golang-server/internal/platform/respond"
 	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/supertokens/supertokens-golang/recipe/session"
@@ -58,7 +59,8 @@ func (s *Service) RequireSession(next http.Handler) http.Handler {
 			return
 		}
 		if ok, wait := s.deps.UserLimit.Allow(p.UserID); !ok {
-			s.deps.Log.WarnContext(r.Context(), "rate limited", "limit", "user", "retry_after", wait)
+			s.deps.Log.WarnContext(r.Context(), "rate limited", "limit", metrics.LimitUser, "retry_after", wait)
+			s.deps.Metrics.RateLimited(metrics.LimitUser)
 			respond.TooManyRequests(w, r, wait)
 			return
 		}
