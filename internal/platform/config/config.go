@@ -130,7 +130,11 @@ type Phone struct {
 	AllowedRegions []string
 }
 
-const ProviderLog = "log"
+const (
+	ProviderLog      = "log"
+	ProviderPostmark = "postmark"
+	ProviderTermii   = "termii"
+)
 
 type Delivery struct {
 	EmailProvider string
@@ -138,6 +142,13 @@ type Delivery struct {
 	SMSProvider   string
 	SMSSender     string
 	Timeout       time.Duration
+
+	PostmarkServerToken Secret
+	PostmarkStream      string
+
+	TermiiAPIKey  Secret
+	TermiiBaseURL string
+	TermiiChannel string
 }
 
 // Admin configures staff sign-in through an OpenID Connect provider such as Google Workspace. An empty Issuer disables it.

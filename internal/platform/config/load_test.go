@@ -138,6 +138,13 @@ func TestLoadRejects(t *testing.T) {
 		{"delivery timeout too long", map[string]string{"DELIVERY_TIMEOUT": "25s"}, "DELIVERY_TIMEOUT"},
 		{"ready timeout too long", map[string]string{"DB_READY_TIMEOUT": "1m"}, "DB_READY_TIMEOUT"},
 		{"cors max age too long", map[string]string{"CORS_MAX_AGE": "48h"}, "CORS_MAX_AGE"},
+		{"postmark without token", map[string]string{"EMAIL_PROVIDER": "postmark", "EMAIL_FROM": "a@b.co"}, "POSTMARK_SERVER_TOKEN: is required"},
+		{"postmark without from", map[string]string{"EMAIL_PROVIDER": "postmark", "POSTMARK_SERVER_TOKEN": "t"}, "EMAIL_FROM: is required"},
+		{"termii without base url", map[string]string{"SMS_PROVIDER": "termii", "TERMII_API_KEY": "k", "SMS_SENDER": "GetGbam"}, "TERMII_BASE_URL: is required"},
+		{"termii http base url", map[string]string{"SMS_PROVIDER": "termii", "TERMII_API_KEY": "k", "TERMII_BASE_URL": "http://api.ng.termii.com", "SMS_SENDER": "GetGbam"}, "TERMII_BASE_URL"},
+		{"termii long sender", map[string]string{"SMS_PROVIDER": "termii", "TERMII_API_KEY": "k", "TERMII_BASE_URL": "https://api.ng.termii.com", "SMS_SENDER": "GetGbamServices"}, "SMS_SENDER"},
+		{"termii whatsapp channel", map[string]string{"SMS_PROVIDER": "termii", "TERMII_API_KEY": "k", "TERMII_BASE_URL": "https://api.ng.termii.com", "SMS_SENDER": "GetGbam", "TERMII_CHANNEL": "whatsapp"}, "TERMII_CHANNEL"},
+		{"prod termii generic channel", prodEnv(map[string]string{"EMAIL_PROVIDER": "postmark", "POSTMARK_SERVER_TOKEN": "t", "SMS_PROVIDER": "termii", "TERMII_API_KEY": "k", "TERMII_BASE_URL": "https://api.ng.termii.com", "SMS_SENDER": "GetGbam", "TERMII_CHANNEL": "generic"}), "TERMII_CHANNEL: must be dnd in production"},
 		{"rate limit too many windows", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "1/1m,2/2m,3/3m,4/4m,5/5m"}, "more than 4"},
 		{"admin setting without issuer", map[string]string{"ADMIN_EMAIL_DOMAIN": "coniungolabs.com"}, "OIDC_ISSUER is empty"},
 		{"admin issuer missing client", map[string]string{"OIDC_ISSUER": "https://accounts.google.com"}, "OIDC_CLIENT_ID: is required"},
@@ -253,5 +260,19 @@ func TestTunables(t *testing.T) {
 	if cfg.Server.MaxHeaderBytes != 32768 || cfg.Database.ConnectTimeout != 3*time.Second || cfg.Database.HealthCheckPeriod != 30*time.Second ||
 		cfg.Database.ReadyTimeout != time.Second || cfg.CORS.MaxAge != time.Hour || cfg.Delivery.Timeout != 8*time.Second {
 		t.Fatalf("overrides not applied: server %+v db %+v cors %+v delivery %+v", cfg.Server, cfg.Database, cfg.CORS, cfg.Delivery)
+	}
+}
+
+func TestProductionWithRealProviders(t *testing.T) {
+	cfg, err := LoadFrom(env(prodEnv(map[string]string{
+		"EMAIL_PROVIDER": "postmark", "POSTMARK_SERVER_TOKEN": "server-token",
+		"SMS_PROVIDER": "termii", "TERMII_API_KEY": "termii-key", "TERMII_BASE_URL": "https://api.ng.termii.com", "SMS_SENDER": "GetGbam",
+	})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := cfg.Delivery
+	if d.PostmarkStream != "outbound" || d.TermiiChannel != "dnd" || d.PostmarkServerToken.Reveal() != "server-token" || d.TermiiAPIKey.Reveal() != "termii-key" {
+		t.Fatalf("unexpected delivery config: %+v", d)
 	}
 }

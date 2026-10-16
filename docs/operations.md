@@ -49,7 +49,7 @@ Keys containing `password`, `secret`, `token`, `authorization`, `cookie`, `api_k
 - `FINGERPRINT_SECRET` is unique per environment and stored as a secret
 - `HTTP_REQUEST_ID_HEADER` and `HTTP_CLIENT_IP_HEADER` are set only behind a proxy that overwrites them
 - `SUPERTOKENS_API_KEY` is unique per environment and the core is not publicly reachable
-- Real email and SMS providers are configured (`log` is rejected)
+- Real email and SMS providers are configured (`log` is rejected): Postmark with SPF, DKIM and DMARC on the sending domain, Termii with an approved sender ID and the DND route enabled
 - `PHONE_ALLOWED_REGIONS` lists only the countries you serve (required); phone sign-in already accepts mobile numbers only, never premium-rate or VoIP
 - The core runs with `ACCESS_TOKEN_VALIDITY=900`
 - Admin sign-in uses an Internal OAuth consent screen, enforced 2-step verification, and its own `ADMIN_API_HOST`

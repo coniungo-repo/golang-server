@@ -114,6 +114,12 @@ func newEmailSender(cfg config.Delivery, log *slog.Logger) (email.Sender, error)
 	switch cfg.EmailProvider {
 	case config.ProviderLog:
 		return email.LogSender{Log: log}, nil
+	case config.ProviderPostmark:
+		return email.NewPostmark(email.PostmarkConfig{
+			ServerToken: cfg.PostmarkServerToken.Reveal(),
+			From:        cfg.EmailFrom,
+			Stream:      cfg.PostmarkStream,
+		})
 	default:
 		return nil, fmt.Errorf("unknown email provider %q", cfg.EmailProvider)
 	}
@@ -123,6 +129,13 @@ func newSMSSender(cfg config.Delivery, log *slog.Logger) (sms.Sender, error) {
 	switch cfg.SMSProvider {
 	case config.ProviderLog:
 		return sms.LogSender{Log: log}, nil
+	case config.ProviderTermii:
+		return sms.NewTermii(sms.TermiiConfig{
+			APIKey:  cfg.TermiiAPIKey.Reveal(),
+			BaseURL: cfg.TermiiBaseURL,
+			Sender:  cfg.SMSSender,
+			Channel: cfg.TermiiChannel,
+		})
 	default:
 		return nil, fmt.Errorf("unknown sms provider %q", cfg.SMSProvider)
 	}

@@ -116,6 +116,13 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			SMSProvider:   r.string("SMS_PROVIDER", ProviderLog),
 			SMSSender:     r.string("SMS_SENDER", ""),
 			Timeout:       r.duration("DELIVERY_TIMEOUT", 10*time.Second),
+
+			PostmarkServerToken: r.secret("POSTMARK_SERVER_TOKEN"),
+			PostmarkStream:      r.string("POSTMARK_MESSAGE_STREAM", "outbound"),
+
+			TermiiAPIKey:  r.secret("TERMII_API_KEY"),
+			TermiiBaseURL: r.string("TERMII_BASE_URL", ""),
+			TermiiChannel: r.string("TERMII_CHANNEL", "dnd"),
 		},
 		Security: Security{
 			FingerprintSecret: r.secret("FINGERPRINT_SECRET"),
@@ -315,8 +322,8 @@ func isLoopback(host string) bool {
 }
 
 var (
-	emailProviders = []string{ProviderLog}
-	smsProviders   = []string{ProviderLog}
+	emailProviders = []string{ProviderLog, ProviderPostmark}
+	smsProviders   = []string{ProviderLog, ProviderTermii}
 )
 
 func checkDelivery(r *reader, d Delivery, prod bool) {
@@ -325,6 +332,24 @@ func checkDelivery(r *reader, d Delivery, prod bool) {
 	if d.EmailFrom != "" {
 		if _, err := mail.ParseAddress(d.EmailFrom); err != nil {
 			r.fail("EMAIL_FROM", "%q is not a valid address, e.g. Brand <hello@example.com>", d.EmailFrom)
+		}
+	}
+	if d.EmailProvider == ProviderPostmark {
+		r.require("POSTMARK_SERVER_TOKEN", d.PostmarkServerToken.IsSet())
+		r.require("EMAIL_FROM", d.EmailFrom != "")
+	}
+	if d.SMSProvider == ProviderTermii {
+		r.require("TERMII_API_KEY", d.TermiiAPIKey.IsSet())
+		r.require("TERMII_BASE_URL", d.TermiiBaseURL != "")
+		if d.TermiiBaseURL != "" && checkOrigin(r, "TERMII_BASE_URL", d.TermiiBaseURL) {
+			checkHTTPS(r, "TERMII_BASE_URL", d.TermiiBaseURL)
+		}
+		if !validSenderID(d.SMSSender) {
+			r.fail("SMS_SENDER", "%q must be the Termii sender ID: 3 to 11 letters, digits or spaces", d.SMSSender)
+		}
+		r.oneOf("TERMII_CHANNEL", d.TermiiChannel, "dnd", "generic")
+		if prod && d.TermiiChannel != "dnd" {
+			r.fail("TERMII_CHANNEL", "must be dnd in production: generic is for promotions and does not reach numbers on Do-Not-Disturb")
 		}
 	}
 	if prod {
@@ -364,4 +389,16 @@ func checkFingerprintSecret(r *reader, s Secret, prod bool) {
 	if prod && strings.HasPrefix(s.Reveal(), placeholderPrefix) {
 		r.fail(key, "is still the example placeholder")
 	}
+}
+
+func validSenderID(s string) bool {
+	if len(s) < 3 || len(s) > 11 || strings.TrimSpace(s) != s {
+		return false
+	}
+	for _, c := range s {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != ' ' {
+			return false
+		}
+	}
+	return true
 }
