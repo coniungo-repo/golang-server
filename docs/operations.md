@@ -53,7 +53,14 @@ Keys containing `password`, `secret`, `token`, `authorization`, `cookie`, `api_k
 - TLS is terminated by the platform; the app sends HSTS in production
 - CI is green: lint, race tests, govulncheck and image build
 
+## Rate limiting
+
+Every route except `/livez` and `/readyz` is limited per client IP (`RATE_LIMIT_CLIENT_IP`), with IPv6 grouped by /64. Routes that need a session are also limited per user (`RATE_LIMIT_USER`). Over either limit the API answers `429` with `Retry-After` and logs `rate limited` at warn level.
+
+These counts are in memory, so each instance enforces the limits on its own: with 3 instances a client can make up to 3 times the limit, and a restart resets them. The per-IP limit is generous because mobile carriers put many users behind one address; set `HTTP_CLIENT_IP_HEADER` behind a proxy, or every user shares the proxy's IP. Volumetric attacks belong at the edge (proxy or CDN), not here.
+
+Sign-in code sends have their own stricter limits, shared by every instance through Postgres. See [auth](auth.md#rate-limits).
+
 ## Not yet in place
 
-- General API rate limiting; only sign-in code sends are limited today
 - Metrics and tracing

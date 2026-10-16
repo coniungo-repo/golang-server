@@ -70,4 +70,5 @@ store(n.E164())
 | `platform/requestid` | Request ID generation and context storage |
 | `platform/route` | Path prefixing for route groups |
 | `platform/clock` | Injectable time source for tests |
+| `platform/ratelimit` | In-memory per-key request limits (GCRA) for the per-IP and per-user limits |
 | `docs` | Serves `api/openapi.yaml` and Swagger UI when `API_DOCS_ENABLED`, with its own Content-Security-Policy |

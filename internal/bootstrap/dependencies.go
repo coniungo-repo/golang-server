@@ -12,23 +12,26 @@ import (
 	"github.com/coniungo-repo/golang-server/internal/platform/database"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
+	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
 	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type dependencies struct {
-	Config  config.Config
-	Log     *slog.Logger
-	DB      *pgxpool.Pool
-	Clock   clock.Clock
-	Health  *health.Probe
-	Phone   *phone.Validator
-	Email   email.Sender
-	SMS     sms.Sender
-	Limiter *auth.Limiter
-	Users   *users.Service
-	Auth    *auth.Service
+	Config    config.Config
+	Log       *slog.Logger
+	DB        *pgxpool.Pool
+	Clock     clock.Clock
+	Health    *health.Probe
+	Phone     *phone.Validator
+	Email     email.Sender
+	SMS       sms.Sender
+	Limiter   *auth.Limiter
+	IPLimit   *ratelimit.Limiter
+	UserLimit *ratelimit.Limiter
+	Users     *users.Service
+	Auth      *auth.Service
 }
 
 func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (*dependencies, error) {
@@ -53,6 +56,8 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 	clk := clock.New()
 	limiter := auth.NewLimiter(pool, cfg.Security.FingerprintSecret.Reveal(), clk, cfg.Auth.RateLimits.Retention())
 	userService := users.New(pool, clk, cfg.Admin.EmailDomain)
+	ipLimit := ratelimit.New(clk, cfg.Limits.ClientIP)
+	userLimit := ratelimit.New(clk, cfg.Limits.User)
 
 	authService, err := auth.New(auth.Deps{
 		Config:         cfg.Auth,
@@ -65,6 +70,7 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 		Email:          emailSender,
 		SMS:            smsSender,
 		Limiter:        limiter,
+		UserLimit:      userLimit,
 	})
 	if err != nil {
 		pool.Close()
@@ -72,17 +78,19 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 	}
 
 	return &dependencies{
-		Config:  cfg,
-		Log:     log,
-		DB:      pool,
-		Clock:   clk,
-		Health:  health.New(pool),
-		Phone:   phones,
-		Email:   emailSender,
-		SMS:     smsSender,
-		Limiter: limiter,
-		Users:   userService,
-		Auth:    authService,
+		Config:    cfg,
+		Log:       log,
+		DB:        pool,
+		Clock:     clk,
+		Health:    health.New(pool),
+		Phone:     phones,
+		Email:     emailSender,
+		SMS:       smsSender,
+		Limiter:   limiter,
+		IPLimit:   ipLimit,
+		UserLimit: userLimit,
+		Users:     userService,
+		Auth:      authService,
 	}, nil
 }
 

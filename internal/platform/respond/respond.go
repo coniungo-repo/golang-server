@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/logger"
 	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
@@ -14,6 +17,7 @@ const (
 	ContentTypeJSON           = "application/json; charset=utf-8"
 	ServerErrorMessage        = "Something went wrong on our side. Try again in a moment."
 	TimeoutMessage            = "That took too long. Try again in a moment."
+	TooManyRequestsMessage    = "Too many requests. Wait a moment and try again."
 	StatusClientClosedRequest = 499
 )
 
@@ -45,6 +49,12 @@ func Error(w http.ResponseWriter, r *http.Request, status int, message string) {
 		Message:   message,
 		RequestID: requestid.From(r.Context()),
 	})
+}
+
+// TooManyRequests sends 429 with Retry-After rounded up to whole seconds.
+func TooManyRequests(w http.ResponseWriter, r *http.Request, wait time.Duration) {
+	w.Header().Set("Retry-After", strconv.FormatInt(int64(math.Ceil(max(wait, time.Second).Seconds())), 10))
+	Error(w, r, http.StatusTooManyRequests, TooManyRequestsMessage)
 }
 
 // ServerError logs err and sends a generic message. Deadlines become 503 and client disconnects are not treated as failures.

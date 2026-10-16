@@ -25,6 +25,8 @@ const (
 var (
 	defaultDestinationLimits = []RateWindow{{Limit: 5, Period: 15 * time.Minute}, {Limit: 15, Period: 24 * time.Hour}}
 	defaultClientIPLimits    = []RateWindow{{Limit: 30, Period: time.Hour}, {Limit: 100, Period: 24 * time.Hour}}
+	defaultRequestIPLimits   = []RateWindow{{Limit: 600, Period: time.Minute}}
+	defaultRequestUserLimits = []RateWindow{{Limit: 120, Period: time.Minute}, {Limit: 3000, Period: time.Hour}}
 )
 
 var localWebsiteDomains = []string{
@@ -110,6 +112,10 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 		},
 		Docs: Docs{
 			Enabled: r.bool("API_DOCS_ENABLED", local),
+		},
+		Limits: Limits{
+			ClientIP: r.rateWindows("RATE_LIMIT_CLIENT_IP", defaultRequestIPLimits),
+			User:     r.rateWindows("RATE_LIMIT_USER", defaultRequestUserLimits),
 		},
 		Phone: Phone{
 			DefaultRegion:  r.string("PHONE_DEFAULT_REGION", ""),

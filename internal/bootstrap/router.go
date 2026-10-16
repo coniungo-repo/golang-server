@@ -2,11 +2,13 @@ package bootstrap
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/coniungo-repo/golang-server/api"
 	"github.com/coniungo-repo/golang-server/internal/docs"
 	"github.com/coniungo-repo/golang-server/internal/platform/middleware"
+	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/request"
 	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
 	"github.com/coniungo-repo/golang-server/internal/platform/respond"
@@ -21,6 +23,7 @@ const (
 
 var (
 	corsAllowHeaders = []string{"Content-Type", "Authorization", requestid.Header, "Idempotency-Key"}
+	healthPaths      = []string{"/livez", "/readyz"}
 	probeMethods     = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
 )
 
@@ -54,6 +57,7 @@ func newRouter(deps *dependencies) (http.Handler, error) {
 		middleware.Recover,
 		middleware.SecureHeaders(deps.Config.App.IsProduction()),
 		cors,
+		middleware.RateLimit("client_ip", deps.IPLimit, clientKey(deps.Config.Server.ClientIPHeader)),
 		middleware.MaxBytes(request.MaxBodyBytes),
 		middleware.Timeout(deps.Config.Server.RequestTimeout),
 	), nil
@@ -106,4 +110,14 @@ func allowedMethods(mux *http.ServeMux, r *http.Request) []string {
 		}
 	}
 	return allow
+}
+
+// clientKey limits every route by client IP except the health probes, which load balancers call often from shared addresses.
+func clientKey(trustedHeader string) func(*http.Request) string {
+	return func(r *http.Request) string {
+		if slices.Contains(healthPaths, r.URL.Path) {
+			return ""
+		}
+		return ratelimit.ClientKey(request.ClientIP(r, trustedHeader))
+	}
 }

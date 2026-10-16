@@ -17,6 +17,7 @@ import (
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
+	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/route"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
 	"github.com/coniungo-repo/golang-server/internal/users"
@@ -169,9 +170,10 @@ func testAuthService(t *testing.T) *auth.Service {
 	t.Cleanup(supertokens.ResetForTest)
 	s, err := auth.New(auth.Deps{
 		Config: cfg.Auth, Admin: cfg.Admin, Clock: clock.New(), Log: log, Phones: phones,
-		Users:   users.New(nil, clock.New(), cfg.Admin.EmailDomain),
-		Limiter: auth.NewLimiter(nil, "secret", clock.New(), time.Hour),
-		Email:   email.LogSender{Log: log}, SMS: sms.LogSender{Log: log},
+		Users:     users.New(nil, clock.New(), cfg.Admin.EmailDomain),
+		Limiter:   auth.NewLimiter(nil, "secret", clock.New(), time.Hour),
+		UserLimit: ratelimit.New(clock.New(), nil),
+		Email:     email.LogSender{Log: log}, SMS: sms.LogSender{Log: log},
 	})
 	if err != nil {
 		t.Fatal(err)

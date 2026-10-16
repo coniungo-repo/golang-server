@@ -40,7 +40,7 @@ func (p Principal) Can(perm Permission) bool {
 	return false
 }
 
-// RequireSession rejects requests without a valid session, from a suspended or deleted user, or from a sign-in method since removed, and puts the Principal on the request context. Access tokens are verified without a core call, so this database check is what makes suspension immediate.
+// RequireSession rejects requests without a valid session, from a suspended or deleted user, from a sign-in method since removed, or over the per-user rate limit, and puts the Principal on the request context. Access tokens are verified without a core call, so this database check is what makes suspension immediate.
 func (s *Service) RequireSession(next http.Handler) http.Handler {
 	return session.VerifySession(nil, func(w http.ResponseWriter, r *http.Request) {
 		p, stUserID, ok := principalFromSession(r.Context())
@@ -55,6 +55,11 @@ func (s *Service) RequireSession(next http.Handler) http.Handler {
 		}
 		if !active {
 			respond.Error(w, r, http.StatusUnauthorized, suspendedMessage)
+			return
+		}
+		if ok, wait := s.deps.UserLimit.Allow(p.UserID); !ok {
+			s.deps.Log.WarnContext(r.Context(), "rate limited", "limit", "user", "retry_after", wait)
+			respond.TooManyRequests(w, r, wait)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey{}, p)))

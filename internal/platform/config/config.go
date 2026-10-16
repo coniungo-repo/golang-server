@@ -28,6 +28,13 @@ type Config struct {
 	Security Security
 	Phone    Phone
 	Docs     Docs
+	Limits   Limits
+}
+
+// Limits caps general request rates per client IP on every route but health checks, and per signed-in user.
+type Limits struct {
+	ClientIP []RateWindow
+	User     []RateWindow
 }
 
 type App struct {

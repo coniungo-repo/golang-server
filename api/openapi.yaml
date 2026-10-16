@@ -97,6 +97,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "413":
           $ref: "#/components/responses/TooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /auth/signinup/code/resend:
     post:
@@ -122,6 +124,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "413":
           $ref: "#/components/responses/TooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /auth/signinup/code/consume:
     post:
@@ -180,6 +184,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "413":
           $ref: "#/components/responses/TooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /auth/session/refresh:
     post:
@@ -207,6 +213,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /auth/signout:
     post:
@@ -226,6 +234,8 @@ paths:
                 $ref: "#/components/schemas/SuperTokensStatus"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /auth/authorisationurl:
     get:
@@ -255,6 +265,8 @@ paths:
                 $ref: "#/components/schemas/SuperTokensStatus"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /auth/signinup:
     post:
@@ -309,6 +321,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "413":
           $ref: "#/components/responses/TooLarge"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/v1/me:
     get:
@@ -326,6 +340,8 @@ paths:
                 $ref: "#/components/schemas/Me"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     delete:
       tags: [Account]
       summary: Delete my account
@@ -338,6 +354,8 @@ paths:
           description: Deleted.
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/v1/me/identities:
     get:
@@ -351,6 +369,8 @@ paths:
           $ref: "#/components/responses/Identities"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     post:
       tags: [Account]
       summary: Send a code to a new email or phone
@@ -407,7 +427,7 @@ paths:
         "422":
           $ref: "#/components/responses/Invalid"
         "429":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/v1/me/identities/verify:
     post:
@@ -456,6 +476,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/v1/me/identities/{id}:
     delete:
@@ -486,6 +508,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/v1/admin/invites:
     get:
@@ -513,6 +537,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     post:
       tags: [Admin]
       summary: Invite a staff email
@@ -555,6 +581,8 @@ paths:
           $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/Invalid"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/v1/admin/invites/{id}/revoke:
     post:
@@ -587,6 +615,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/v1/admin/users/{id}:
     delete:
@@ -613,6 +643,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/v1/admin/users/{id}/suspend:
     post:
@@ -638,6 +670,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /api/v1/admin/users/{id}/reactivate:
     post:
@@ -663,6 +697,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
 components:
   securitySchemes:
@@ -830,6 +866,17 @@ components:
             $ref: "#/components/schemas/Error"
     UnsupportedMediaType:
       description: The `Content-Type` is not `application/json`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyRequests:
+      description: Over a rate limit. When `Retry-After` is set, wait that many seconds before trying again.
+      headers:
+        Retry-After:
+          description: Seconds to wait.
+          schema:
+            type: integer
       content:
         application/json:
           schema:
