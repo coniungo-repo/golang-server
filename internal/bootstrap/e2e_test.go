@@ -472,7 +472,7 @@ func TestAuthEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("revoking an admin's invite removes access and signs them out", func(t *testing.T) {
+	t.Run("revoking an admin's invite removes access, and a new invite restores it", func(t *testing.T) {
 		second, secondSub := randomStaff(), fmt.Sprint(rand.Int64())
 		created := c.do("POST", "/api/v1/admin/invites", adminHost, adminSession.token, map[string]string{"email": second})
 		if created.status != 201 {
@@ -482,6 +482,7 @@ func TestAuthEndToEnd(t *testing.T) {
 		if secondSession.body["status"] != "OK" {
 			t.Fatalf("second admin sign-in: %v", secondSession.body)
 		}
+		secondUserID := c.userID(secondSession.token)
 		id := fmt.Sprint(int64(created.body["id"].(float64)))
 		if got := c.do("POST", "/api/v1/admin/invites/"+id+"/revoke", adminHost, adminSession.token, nil).status; got != 204 {
 			t.Fatalf("revoke status %d", got)
@@ -491,6 +492,20 @@ func TestAuthEndToEnd(t *testing.T) {
 		}
 		if got := c.adminSignIn(adminHost, idp.code(testClientID, secondSub, second, nil)); got.token != "" {
 			t.Fatalf("revoked admin signed in again: %v", got.body)
+		}
+
+		if got := c.do("POST", "/api/v1/admin/invites", adminHost, adminSession.token, map[string]string{"email": second}).status; got != 201 {
+			t.Fatalf("re-invite status %d", got)
+		}
+		again := c.adminSignIn(adminHost, idp.code(testClientID, secondSub, second, nil))
+		if again.body["status"] != "OK" || again.token == "" {
+			t.Fatalf("re-invited admin could not sign in: %v", again.body)
+		}
+		if got := c.do("GET", "/api/v1/admin/invites", adminHost, again.token, nil).status; got != 200 {
+			t.Fatalf("re-invited admin got %d on admin routes, want 200", got)
+		}
+		if got := c.userID(again.token); got != secondUserID {
+			t.Fatalf("re-invited admin is user %s, want their original account %s", got, secondUserID)
 		}
 	})
 

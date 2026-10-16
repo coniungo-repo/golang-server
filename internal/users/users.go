@@ -129,21 +129,23 @@ func (s *Service) resolveCustomer(ctx context.Context, id Identity) (Principal, 
 
 // AdminEligible reports, without changing anything, whether this OpenID Connect identity may sign in as an admin.
 func (s *Service) AdminEligible(ctx context.Context, subject, addr string) error {
-	q := store.New(s.db)
-	row, err := q.GetIdentityBySubject(ctx, store.GetIdentityBySubjectParams{Kind: string(KindOIDC), Subject: subject})
-	if err == nil {
-		return s.checkActiveAdmin(ctx, q, row.UserID, Status(row.Status))
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
 	return pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
-		_, err := s.openInvite(ctx, store.New(tx), addr)
-		return err
+		q := store.New(tx)
+		row, err := q.GetIdentityBySubject(ctx, store.GetIdentityBySubjectParams{Kind: string(KindOIDC), Subject: subject})
+		switch {
+		case err == nil:
+			_, err = s.adminAccess(ctx, q, row.UserID, Status(row.Status), addr)
+			return err
+		case errors.Is(err, pgx.ErrNoRows):
+			_, err = s.openInvite(ctx, q, addr)
+			return err
+		default:
+			return err
+		}
 	})
 }
 
-// ResolveAdmin links an OpenID Connect identity to its admin user. The first sign-in consumes the invite for its email; later sign-ins match on subject only.
+// ResolveAdmin links an OpenID Connect identity to its admin user. The first sign-in consumes the invite for its email; later sign-ins match on subject only, unless the admin role was revoked, when a new invite restores it.
 func (s *Service) ResolveAdmin(ctx context.Context, id Identity) (Principal, error) {
 	var p Principal
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
@@ -154,8 +156,14 @@ func (s *Service) ResolveAdmin(ctx context.Context, id Identity) (Principal, err
 			if row.SupertokensUserID != id.SupertokensUserID {
 				return ErrIdentityTaken
 			}
-			if err := s.checkActiveAdmin(ctx, q, row.UserID, Status(row.Status)); err != nil {
+			inviteID, err := s.adminAccess(ctx, q, row.UserID, Status(row.Status), id.Email)
+			if err != nil {
 				return err
+			}
+			if inviteID != 0 {
+				if err := s.acceptInvite(ctx, q, inviteID, row.UserID, id.Email); err != nil {
+					return err
+				}
 			}
 			if err := q.UpdateIdentityEmail(ctx, store.UpdateIdentityEmailParams{ID: row.ID, Email: &id.Email}); err != nil {
 				return err
@@ -172,13 +180,7 @@ func (s *Service) ResolveAdmin(ctx context.Context, id Identity) (Principal, err
 			if err := s.createIdentity(ctx, q, p.UserID, id); err != nil {
 				return err
 			}
-			if err := q.AddRole(ctx, store.AddRoleParams{UserID: p.UserID, Role: string(RoleAdmin)}); err != nil {
-				return err
-			}
-			if err := q.AcceptAdminInvite(ctx, store.AcceptAdminInviteParams{ID: inviteID, AcceptedBy: &p.UserID}); err != nil {
-				return err
-			}
-			if err := audit(ctx, q, &p.UserID, "admin.invite.accepted", id.Email); err != nil {
+			if err := s.acceptInvite(ctx, q, inviteID, p.UserID, id.Email); err != nil {
 				return err
 			}
 		default:
@@ -325,18 +327,29 @@ func (s *Service) createIdentity(ctx context.Context, q *store.Queries, userID s
 	})
 }
 
-func (s *Service) checkActiveAdmin(ctx context.Context, q *store.Queries, userID string, status Status) error {
+// adminAccess checks the user behind an existing admin identity. One without the admin role, such as an admin whose invite was revoked, needs a new open invite for addr, whose ID it returns; it returns 0 for a current admin.
+func (s *Service) adminAccess(ctx context.Context, q *store.Queries, userID string, status Status, addr string) (int64, error) {
 	if status != StatusActive {
-		return ErrSuspended
+		return 0, ErrSuspended
 	}
 	rs, err := roles(ctx, q, userID)
 	if err != nil {
+		return 0, err
+	}
+	if slices.Contains(rs, RoleAdmin) {
+		return 0, nil
+	}
+	return s.openInvite(ctx, q, addr)
+}
+
+func (s *Service) acceptInvite(ctx context.Context, q *store.Queries, inviteID int64, userID, addr string) error {
+	if err := q.AddRole(ctx, store.AddRoleParams{UserID: userID, Role: string(RoleAdmin)}); err != nil {
 		return err
 	}
-	if !slices.Contains(rs, RoleAdmin) {
-		return ErrNotInvited
+	if err := q.AcceptAdminInvite(ctx, store.AcceptAdminInviteParams{ID: inviteID, AcceptedBy: &userID}); err != nil {
+		return err
 	}
-	return nil
+	return audit(ctx, q, &userID, "admin.invite.accepted", addr)
 }
 
 func (s *Service) openInvite(ctx context.Context, q *store.Queries, addr string) (int64, error) {
