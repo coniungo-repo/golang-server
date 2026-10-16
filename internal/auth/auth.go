@@ -52,6 +52,9 @@ func New(d Deps) (*Service, error) {
 	if len(limits.Destination) == 0 || len(limits.ClientIP) == 0 {
 		return nil, errors.New("auth: destination and client IP rate limits are required")
 	}
+	if d.Config.CoreTimeout <= 0 {
+		return nil, errors.New("auth: a core timeout is required, since the SDK's calls ignore request deadlines")
+	}
 	s := &Service{
 		deps:              d,
 		destinationPolicy: Policy{Kind: kindDestination, Windows: limits.Destination},
@@ -86,6 +89,7 @@ func New(d Deps) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	supertokens.SetHTTPClient(&http.Client{Timeout: d.Config.CoreTimeout})
 	return s, nil
 }
 
