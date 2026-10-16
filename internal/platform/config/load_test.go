@@ -128,6 +128,8 @@ func TestLoadRejects(t *testing.T) {
 		{"rate limit no unit", map[string]string{"AUTH_RATE_LIMIT_CLIENT_IP": "30/60"}, "AUTH_RATE_LIMIT_CLIENT_IP"},
 		{"rate limit too long", map[string]string{"AUTH_RATE_LIMIT_CLIENT_IP": "30/720h"}, "AUTH_RATE_LIMIT_CLIENT_IP"},
 		{"rate limit repeated period", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "5/15m,10/15m"}, "repeats the period"},
+		{"request limit garbage", map[string]string{"RATE_LIMIT_CLIENT_IP": "fast"}, "RATE_LIMIT_CLIENT_IP"},
+		{"request limit zero", map[string]string{"RATE_LIMIT_USER": "0/1m"}, "RATE_LIMIT_USER"},
 		{"rate limit too many windows", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "1/1m,2/2m,3/3m,4/4m,5/5m"}, "more than 4"},
 		{"admin setting without issuer", map[string]string{"ADMIN_EMAIL_DOMAIN": "coniungolabs.com"}, "OIDC_ISSUER is empty"},
 		{"admin issuer missing client", map[string]string{"OIDC_ISSUER": "https://accounts.google.com"}, "OIDC_CLIENT_ID: is required"},
@@ -202,5 +204,23 @@ func TestRateLimits(t *testing.T) {
 	}
 	if cfg.Auth.RateLimits.Retention() != 48*time.Hour {
 		t.Fatalf("retention should be the longest window, got %s", cfg.Auth.RateLimits.Retention())
+	}
+}
+
+func TestRequestLimits(t *testing.T) {
+	cfg, err := LoadFrom(env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(cfg.Limits.ClientIP, []RateWindow{{600, time.Minute}}) || !slices.Equal(cfg.Limits.User, []RateWindow{{120, time.Minute}, {3000, time.Hour}}) {
+		t.Fatalf("unexpected defaults: %+v", cfg.Limits)
+	}
+
+	cfg, err = LoadFrom(env(map[string]string{"RATE_LIMIT_CLIENT_IP": "100/10s,1000/1h", "RATE_LIMIT_USER": "30/1m"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(cfg.Limits.ClientIP, []RateWindow{{100, 10 * time.Second}, {1000, time.Hour}}) || !slices.Equal(cfg.Limits.User, []RateWindow{{30, time.Minute}}) {
+		t.Fatalf("got %+v", cfg.Limits)
 	}
 }

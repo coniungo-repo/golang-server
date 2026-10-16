@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/health"
+	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
+	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
 )
 
@@ -55,5 +57,41 @@ func TestRouter(t *testing.T) {
 		if rr.Code >= 400 && rr.Header().Get("Content-Type") != "application/json; charset=utf-8" {
 			t.Fatalf("%s %s: error is not JSON", tt.method, tt.path)
 		}
+	}
+}
+
+func TestRouterRateLimitsByClientIP(t *testing.T) {
+	var cfg config.Config
+	cfg.Server.RequestTimeout = time.Second
+	limit := ratelimit.New(clock.New(), []config.RateWindow{{Limit: 3, Period: time.Hour}})
+	h, err := newRouter(&dependencies{Config: cfg, Health: health.New(okPinger{}), IPLimit: limit})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := func(path, remote string) int {
+		r := httptest.NewRequest(http.MethodGet, path, nil)
+		r.RemoteAddr = remote
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, r)
+		return rr.Code
+	}
+
+	for range 3 {
+		status("/api/v1/nope", "203.0.113.7:1000")
+	}
+	if got := status("/api/v1/nope", "203.0.113.7:2000"); got != http.StatusTooManyRequests {
+		t.Fatalf("over the limit got %d, want 429", got)
+	}
+	if got := status("/livez", "203.0.113.7:1000"); got != http.StatusOK {
+		t.Fatalf("health probes must not be limited, got %d", got)
+	}
+	if got := status("/api/v1/nope", "198.51.100.1:1000"); got != http.StatusNotFound {
+		t.Fatalf("another client got %d", got)
+	}
+	for range 3 {
+		status("/api/v1/nope", "[2001:db8:1:2::1]:1000")
+	}
+	if got := status("/api/v1/nope", "[2001:db8:1:2::ffff]:1000"); got != http.StatusTooManyRequests {
+		t.Fatalf("another address in the same /64 got %d, want 429", got)
 	}
 }

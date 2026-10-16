@@ -10,7 +10,10 @@ import (
 	"github.com/coniungo-repo/golang-server/internal/platform/logger"
 )
 
-const pruneInterval = time.Hour
+const (
+	pruneInterval = time.Hour
+	sweepInterval = 5 * time.Minute
+)
 
 func RunAPI(ctx context.Context) error {
 	cfg, err := config.Load()
@@ -36,6 +39,9 @@ func RunAPI(ctx context.Context) error {
 	go deps.Limiter.RunPruner(ctx, pruneInterval, func(err error) {
 		log.Warn("pruning sign-in attempts failed", "err", err)
 	})
+
+	go deps.IPLimit.RunSweeper(ctx, sweepInterval)
+	go deps.UserLimit.RunSweeper(ctx, sweepInterval)
 
 	handler, err := newRouter(deps)
 	if err != nil {

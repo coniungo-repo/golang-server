@@ -159,6 +159,8 @@ Code sends (create and resend) are limited per destination and per client IP. Ev
 
 Counts live in `sign_in_attempts`, keyed by an HMAC with `FINGERPRINT_SECRET`, so raw emails, phones and IPs are never stored. Rows older than the longest window are pruned hourly. Set `HTTP_CLIENT_IP_HEADER` behind a proxy, or every user shares the proxy's IP.
 
+Every auth route is also covered by the general per-IP request limit, and session routes by the per-user limit. See [operations](operations.md#rate-limiting).
+
 The core separately locks a code after 5 wrong attempts, and codes expire after 10 minutes (`PASSWORDLESS_CODE_LIFETIME`, `PASSWORDLESS_MAX_CODE_INPUT_ATTEMPTS`).
 
 ## Delivery

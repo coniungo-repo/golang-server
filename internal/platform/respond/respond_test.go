@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestServerError(t *testing.T) {
@@ -32,5 +33,15 @@ func TestServerError(t *testing.T) {
 				t.Fatalf("status %d, want %d", rr.Code, tt.want)
 			}
 		})
+	}
+}
+
+func TestTooManyRequests(t *testing.T) {
+	for wait, want := range map[time.Duration]string{0: "1", 300 * time.Millisecond: "1", 1500 * time.Millisecond: "2", time.Minute: "60"} {
+		rr := httptest.NewRecorder()
+		TooManyRequests(rr, httptest.NewRequest(http.MethodGet, "/", nil), wait)
+		if rr.Code != http.StatusTooManyRequests || rr.Header().Get("Retry-After") != want {
+			t.Fatalf("wait %s: status %d, Retry-After %q, want %q", wait, rr.Code, rr.Header().Get("Retry-After"), want)
+		}
 	}
 }

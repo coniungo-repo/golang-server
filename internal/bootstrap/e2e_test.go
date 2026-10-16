@@ -202,7 +202,7 @@ func TestAuthEndToEnd(t *testing.T) {
 	env := map[string]string{
 		"APP_ENV": "test", "DATABASE_URL": dbURL, "FINGERPRINT_SECRET": strings.Repeat("s", 32),
 		"SUPERTOKENS_CONNECTION_URI": stURI, "SUPERTOKENS_API_KEY": stKey, "SUPERTOKENS_APP_NAME": "Test",
-		"SUPERTOKENS_API_DOMAIN": base, "PHONE_DEFAULT_REGION": "NG", "AUTH_RATE_LIMIT_CLIENT_IP": "100000/1h",
+		"SUPERTOKENS_API_DOMAIN": base, "PHONE_DEFAULT_REGION": "NG", "AUTH_RATE_LIMIT_CLIENT_IP": "100000/1h", "RATE_LIMIT_CLIENT_IP": "100000/1m",
 		"OIDC_ISSUER": idp.URL, "OIDC_CLIENT_ID": testClientID, "OIDC_CLIENT_SECRET": "secret",
 		"OIDC_HOSTED_DOMAIN": "coniungolabs.com", "ADMIN_EMAIL_DOMAIN": "coniungolabs.com", "ADMIN_API_HOST": adminHost,
 	}
@@ -551,6 +551,23 @@ func TestAuthEndToEnd(t *testing.T) {
 	t.Run("invites outside the admin domain are rejected", func(t *testing.T) {
 		if got := c.do("POST", "/api/v1/admin/invites", adminHost, adminSession.token, map[string]string{"email": "ada@gmail.com"}).status; got != 422 {
 			t.Fatalf("status %d, want 422", got)
+		}
+	})
+
+	t.Run("a signed-in user over the per-user limit gets 429", func(t *testing.T) {
+		busy := c.phoneSignIn(logs, randomPhone())
+		limit := cfg.Limits.User[0].Limit
+		for i := range limit {
+			if got := c.do("GET", "/api/v1/me", "", busy.token, nil).status; got != 200 {
+				t.Fatalf("request %d: status %d within the limit", i+1, got)
+			}
+		}
+		got := c.do("GET", "/api/v1/me", "", busy.token, nil)
+		if got.status != 429 || got.body["request_id"] == nil {
+			t.Fatalf("over the limit: %d %v, want 429 with a request_id", got.status, got.body)
+		}
+		if other := c.do("GET", "/api/v1/me", "", first.token, nil).status; other != 200 {
+			t.Fatalf("another user from the same IP got %d", other)
 		}
 	})
 }

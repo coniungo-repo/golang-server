@@ -13,6 +13,7 @@ import (
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
+	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
 	"github.com/coniungo-repo/golang-server/internal/users"
@@ -33,6 +34,7 @@ type Deps struct {
 	Email          email.Sender
 	SMS            sms.Sender
 	Limiter        *Limiter
+	UserLimit      *ratelimit.Limiter
 }
 
 // Service is the initialised auth layer. SuperTokens keeps global state, so create one per process.
@@ -43,8 +45,8 @@ type Service struct {
 }
 
 func New(d Deps) (*Service, error) {
-	if d.Phones == nil || d.Email == nil || d.SMS == nil || d.Limiter == nil || d.Log == nil || d.Users == nil || d.Clock == nil {
-		return nil, errors.New("auth: Phones, Email, SMS, Limiter, Users, Clock and Log are required")
+	if d.Phones == nil || d.Email == nil || d.SMS == nil || d.Limiter == nil || d.UserLimit == nil || d.Log == nil || d.Users == nil || d.Clock == nil {
+		return nil, errors.New("auth: Phones, Email, SMS, Limiter, UserLimit, Users, Clock and Log are required")
 	}
 	limits := d.Config.RateLimits
 	if len(limits.Destination) == 0 || len(limits.ClientIP) == 0 {

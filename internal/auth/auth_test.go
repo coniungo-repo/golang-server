@@ -15,6 +15,7 @@ import (
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
+	"github.com/coniungo-repo/golang-server/internal/platform/ratelimit"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
 	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/supertokens/supertokens-golang/ingredients/emaildelivery"
@@ -181,6 +182,7 @@ func TestNewRequiresRateLimits(t *testing.T) {
 	s, _ := testService(t)
 	d := s.deps
 	d.Limiter = &Limiter{}
+	d.UserLimit = ratelimit.New(clock.New(), nil)
 	d.Clock = clock.New()
 	d.Users = users.New(nil, d.Clock, "")
 	if _, err := New(d); err == nil || !strings.Contains(err.Error(), "rate limits") {
