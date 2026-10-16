@@ -141,7 +141,7 @@ make admin-invite email=you@coniungolabs.com
 
 In production, run `/admin invite you@coniungolabs.com` from the image with the production environment. After that, admins invite each other in the admin app.
 
-To offboard: suspend the person in Google, then revoke their invite in the admin app, which removes the role and signs them out everywhere.
+To offboard: suspend the person in Google, then revoke their invite in the admin app, which removes the role and signs them out everywhere. To bring someone back, invite their email again: their next Google sign-in accepts it and restores the role on their existing account.
 
 ## Input rules
 
