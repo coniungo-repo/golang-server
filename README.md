@@ -66,3 +66,4 @@ deploy                  local Docker Compose
 - [Auth](docs/auth.md)
 - [Configuration](docs/configuration.md)
 - [Operations](docs/operations.md)
+- [Production checklist](docs/production.md): accounts, secrets and settings to change before going live
