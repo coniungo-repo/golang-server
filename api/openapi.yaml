@@ -20,7 +20,7 @@ servers:
 tags:
   - name: Health
   - name: Sign-in
-    description: Served by the SuperTokens middleware. Bodies use camelCase and every response has a `status`.
+    description: Served by the SuperTokens middleware. Bodies use camelCase and 200 responses have a `status`; malformed requests get a 4xx `Error`.
   - name: Account
   - name: Admin
     description: Admin host only, with a Google session younger than `ADMIN_SESSION_MAX_AGE`.
@@ -93,6 +93,10 @@ paths:
                     enum: [USER_INPUT_CODE]
                   message:
                     type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/TooLarge"
 
   /auth/signinup/code/resend:
     post:
@@ -114,6 +118,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuperTokensStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/TooLarge"
 
   /auth/signinup/code/consume:
     post:
@@ -168,6 +176,10 @@ paths:
                     type: integer
                   message:
                     type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/TooLarge"
 
   /auth/session/refresh:
     post:
@@ -191,6 +203,10 @@ paths:
               $ref: "#/components/headers/FrontToken"
         "401":
           description: The refresh token is missing, expired or revoked. Sign in again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /auth/signout:
     post:
@@ -208,6 +224,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuperTokensStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /auth/authorisationurl:
     get:
@@ -235,6 +253,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuperTokensStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
   /auth/signinup:
     post:
@@ -285,6 +305,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuperTokensStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/TooLarge"
 
   /api/v1/me:
     get:
@@ -364,6 +388,8 @@ paths:
                     type: string
                   pre_auth_session_id:
                     type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -374,6 +400,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/Invalid"
         "429":
@@ -404,6 +434,8 @@ paths:
       responses:
         "201":
           $ref: "#/components/responses/Identities"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -414,6 +446,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           description: Wrong or expired code, or the flow must restart.
           content:
@@ -501,6 +537,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Invite"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -511,6 +549,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         "422":
           $ref: "#/components/responses/Invalid"
 
@@ -770,6 +812,24 @@ components:
                 enum: [ok]
     Error:
       description: Error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadRequest:
+      description: The body is not valid JSON or not an object, a field has the wrong type, or a required field is missing or unknown.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooLarge:
+      description: The body is larger than 1 MiB.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UnsupportedMediaType:
+      description: The `Content-Type` is not `application/json`.
       content:
         application/json:
           schema:
