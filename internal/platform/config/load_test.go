@@ -11,8 +11,9 @@ const validSecret = "0123456789abcdef0123456789abcdef"
 
 func env(overrides map[string]string) func(string) (string, bool) {
 	base := map[string]string{
-		"DATABASE_URL":       "postgres://u:p@localhost:5432/db?sslmode=disable",
-		"FINGERPRINT_SECRET": validSecret,
+		"DATABASE_URL":         "postgres://u:p@localhost:5432/db?sslmode=disable",
+		"FINGERPRINT_SECRET":   validSecret,
+		"SUPERTOKENS_APP_NAME": "Test",
 	}
 	for k, v := range overrides {
 		base[k] = v
@@ -36,6 +37,37 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if len(cfg.Auth.WebsiteDomains) == 0 || len(cfg.CORS.AllowedOrigins) != len(cfg.Auth.WebsiteDomains) {
 		t.Fatalf("expected matching local website and CORS defaults: %v %v", cfg.Auth.WebsiteDomains, cfg.CORS.AllowedOrigins)
+	}
+}
+
+func adminEnv(overrides map[string]string) map[string]string {
+	base := map[string]string{
+		"OIDC_ISSUER":        "https://accounts.google.com",
+		"OIDC_CLIENT_ID":     "client",
+		"OIDC_CLIENT_SECRET": "secret",
+		"OIDC_HOSTED_DOMAIN": "coniungolabs.com",
+		"ADMIN_EMAIL_DOMAIN": "coniungolabs.com",
+	}
+	for k, v := range overrides {
+		base[k] = v
+	}
+	return base
+}
+
+func TestAdminConfig(t *testing.T) {
+	cfg, err := LoadFrom(env(nil))
+	if err != nil || cfg.Admin.Enabled() {
+		t.Fatalf("admin sign-in should be off by default: %v", err)
+	}
+	cfg, err = LoadFrom(env(adminEnv(map[string]string{"ADMIN_EMAIL_DOMAIN": "ConiungoLabs.com", "OIDC_HOSTED_DOMAIN": "coniungolabs.com"})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Admin.Enabled() || cfg.Admin.EmailDomain != "coniungolabs.com" || cfg.Admin.SessionMaxAge != 12*time.Hour {
+		t.Fatalf("unexpected admin config: %+v", cfg.Admin)
+	}
+	if _, err := LoadFrom(env(adminEnv(map[string]string{"OIDC_ISSUER": "http://127.0.0.1:9999"}))); err != nil {
+		t.Fatalf("loopback http issuer should be allowed outside production: %v", err)
 	}
 }
 
@@ -97,6 +129,16 @@ func TestLoadRejects(t *testing.T) {
 		{"rate limit too long", map[string]string{"AUTH_RATE_LIMIT_CLIENT_IP": "30/720h"}, "AUTH_RATE_LIMIT_CLIENT_IP"},
 		{"rate limit repeated period", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "5/15m,10/15m"}, "repeats the period"},
 		{"rate limit too many windows", map[string]string{"AUTH_RATE_LIMIT_DESTINATION": "1/1m,2/2m,3/3m,4/4m,5/5m"}, "more than 4"},
+		{"admin setting without issuer", map[string]string{"ADMIN_EMAIL_DOMAIN": "coniungolabs.com"}, "OIDC_ISSUER is empty"},
+		{"admin issuer missing client", map[string]string{"OIDC_ISSUER": "https://accounts.google.com"}, "OIDC_CLIENT_ID: is required"},
+		{"admin issuer with path", adminEnv(map[string]string{"OIDC_ISSUER": "https://accounts.google.com/o/oauth2"}), "OIDC_ISSUER"},
+		{"admin http issuer remote", adminEnv(map[string]string{"OIDC_ISSUER": "http://accounts.google.com"}), "must use https"},
+		{"admin domain with at", adminEnv(map[string]string{"ADMIN_EMAIL_DOMAIN": "@coniungolabs.com"}), "bare domain"},
+		{"hosted domain mismatch", adminEnv(map[string]string{"OIDC_HOSTED_DOMAIN": "other.com"}), "OIDC_HOSTED_DOMAIN"},
+		{"admin session too long", adminEnv(map[string]string{"ADMIN_SESSION_MAX_AGE": "720h"}), "ADMIN_SESSION_MAX_AGE"},
+		{"admin host with scheme", adminEnv(map[string]string{"ADMIN_API_HOST": "https://admin.example.com"}), "ADMIN_API_HOST"},
+		{"prod admin without host", prodEnv(adminEnv(nil)), "ADMIN_API_HOST: is required"},
+		{"missing app name", map[string]string{"SUPERTOKENS_APP_NAME": ""}, "SUPERTOKENS_APP_NAME: is required"},
 		{"prod http website", prodEnv(map[string]string{"SUPERTOKENS_WEBSITE_DOMAINS": "http://app.example.com", "CORS_ALLOWED_ORIGINS": "http://app.example.com"}), "must use https"},
 	}
 	for _, tt := range tests {

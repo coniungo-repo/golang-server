@@ -6,6 +6,7 @@ import (
 
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/request"
+	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/supertokens/supertokens-golang/recipe/passwordless/plessmodels"
 	"github.com/supertokens/supertokens-golang/supertokens"
 )
@@ -18,6 +19,15 @@ var errNoContact = errors.New("auth: request has neither email nor phone number"
 func (s *Service) overrideAPIs(original plessmodels.APIInterface) plessmodels.APIInterface {
 	createCode := *original.CreateCodePOST
 	resendCode := *original.ResendCodePOST
+	consumeCode := *original.ConsumeCodePOST
+
+	consume := func(userInput *plessmodels.UserInputCodeWithDeviceID, linkCode *string, preAuthSessionID string, tenantID string, options plessmodels.APIOptions, userContext supertokens.UserContext) (plessmodels.ConsumeCodePOSTResponse, error) {
+		resp, err := consumeCode(userInput, linkCode, preAuthSessionID, tenantID, options, userContext)
+		if errors.Is(err, users.ErrSuspended) {
+			return plessmodels.ConsumeCodePOSTResponse{GeneralError: &supertokens.GeneralErrorResponse{Message: suspendedMessage}}, nil
+		}
+		return resp, err
+	}
 
 	create := func(emailAddr *string, phoneNumber *string, tenantID string, options plessmodels.APIOptions, userContext supertokens.UserContext) (plessmodels.CreateCodePOSTResponse, error) {
 		destination, err := s.canonicalise(emailAddr, phoneNumber)
@@ -56,6 +66,7 @@ func (s *Service) overrideAPIs(original plessmodels.APIInterface) plessmodels.AP
 		return resendCode(deviceID, preAuthSessionID, tenantID, options, userContext)
 	}
 
+	original.ConsumeCodePOST = &consume
 	original.CreateCodePOST = &create
 	original.ResendCodePOST = &resend
 	original.EmailExistsGET = nil

@@ -8,17 +8,23 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
+	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/supertokens/supertokens-golang/recipe/passwordless"
 	"github.com/supertokens/supertokens-golang/recipe/session"
+	"github.com/supertokens/supertokens-golang/recipe/thirdparty"
 	"github.com/supertokens/supertokens-golang/supertokens"
 )
 
 type Deps struct {
 	Config         config.Auth
+	Admin          config.Admin
+	Clock          clock.Clock
+	Users          *users.Service
 	ClientIPHeader string
 	Log            *slog.Logger
 	Phones         *phone.Validator
@@ -35,8 +41,8 @@ type Service struct {
 }
 
 func New(d Deps) (*Service, error) {
-	if d.Phones == nil || d.Email == nil || d.SMS == nil || d.Limiter == nil || d.Log == nil {
-		return nil, errors.New("auth: Phones, Email, SMS, Limiter and Log are required")
+	if d.Phones == nil || d.Email == nil || d.SMS == nil || d.Limiter == nil || d.Log == nil || d.Users == nil || d.Clock == nil {
+		return nil, errors.New("auth: Phones, Email, SMS, Limiter, Users, Clock and Log are required")
 	}
 	limits := d.Config.RateLimits
 	if len(limits.Destination) == 0 || len(limits.ClientIP) == 0 {
@@ -46,6 +52,14 @@ func New(d Deps) (*Service, error) {
 		deps:              d,
 		destinationPolicy: Policy{Kind: kindDestination, Windows: limits.Destination},
 		clientPolicy:      Policy{Kind: kindClientIP, Windows: limits.ClientIP},
+	}
+
+	recipes := []supertokens.Recipe{
+		passwordless.Init(s.passwordlessConfig()),
+		session.Init(s.sessionConfig()),
+	}
+	if d.Admin.Enabled() {
+		recipes = append(recipes, thirdparty.Init(s.thirdPartyConfig()))
 	}
 
 	telemetry := false
@@ -61,10 +75,7 @@ func New(d Deps) (*Service, error) {
 			WebsiteBasePath: &d.Config.WebsiteBasePath,
 			GetOrigin:       s.origin,
 		},
-		RecipeList: []supertokens.Recipe{
-			passwordless.Init(s.passwordlessConfig()),
-			session.Init(s.sessionConfig()),
-		},
+		RecipeList:            recipes,
 		Telemetry:             &telemetry,
 		OnSuperTokensAPIError: s.onAPIError,
 	})
@@ -84,18 +95,18 @@ func (s *Service) CORSHeaders() []string {
 	return supertokens.GetAllCORSHeaders()
 }
 
-// RequireSession rejects requests without a valid session with 401 and passes the rest to next.
-func (s *Service) RequireSession(next http.Handler) http.Handler {
-	return session.VerifySession(nil, next.ServeHTTP)
-}
-
-// UserID returns the signed-in user's SuperTokens ID, or "" outside RequireSession.
-func UserID(ctx context.Context) string {
-	sc := session.GetSessionFromRequestContext(ctx)
-	if sc == nil {
-		return ""
+// RevokeUserSessions signs userID out everywhere, across every identity they sign in with.
+func (s *Service) RevokeUserSessions(ctx context.Context, userID string) error {
+	ids, err := s.deps.Users.SupertokensUserIDs(ctx, userID)
+	if err != nil {
+		return err
 	}
-	return sc.GetUserID()
+	for _, id := range ids {
+		if _, err := session.RevokeAllSessionsForUser(id, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) origin(r *http.Request, _ supertokens.UserContext) (string, error) {

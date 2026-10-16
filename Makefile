@@ -1,4 +1,4 @@
-.PHONY: run dev test test-db lint vuln check build docker db-up db-down migrate migrate-down migration generate
+.PHONY: run dev test test-db admin-invite lint vuln check build docker db-up db-down migrate migrate-down migration generate
 
 ENV = if [ -f .env ]; then set -a; . ./.env; set +a; fi;
 COMPOSE = docker compose --env-file .env -f deploy/docker-compose.yml
@@ -15,7 +15,7 @@ test:
 	go test -race -count=1 ./...
 
 test-db:
-	@$(ENV) TEST_DATABASE_URL="$$DATABASE_URL" go test -race -count=1 ./...
+	@$(ENV) TEST_DATABASE_URL="$$DATABASE_URL" TEST_SUPERTOKENS_URI="$$SUPERTOKENS_CONNECTION_URI" TEST_SUPERTOKENS_API_KEY="$$SUPERTOKENS_API_KEY" go test -race -count=1 ./...
 
 lint:
 	@test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)
@@ -28,7 +28,7 @@ vuln:
 check: lint test vuln
 
 build:
-	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/api ./cmd/api
+	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/ ./cmd/...
 
 docker:
 	docker build --build-arg VERSION=$(VERSION) -t golang-server:$(VERSION) .
@@ -50,6 +50,10 @@ migrate-down:
 migration:
 	@echo "$(name)" | grep -Eq '^[a-z0-9_]+$$' || (echo "usage: make migration name=create_businesses" && exit 1)
 	$(TOOL) goose -dir migrations -s create $(name) sql
+
+admin-invite:
+	@test -n "$(email)" || (echo "usage: make admin-invite email=you@example.com" && exit 1)
+	@$(ENV) go run ./cmd/admin invite "$(email)"
 
 generate:
 	@test -d queries || (echo "no queries/ yet: write the first query, then run make generate" && exit 1)

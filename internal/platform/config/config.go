@@ -24,6 +24,7 @@ type Config struct {
 	CORS     CORS
 	Auth     Auth
 	Delivery Delivery
+	Admin    Admin
 	Security Security
 	Phone    Phone
 }
@@ -118,3 +119,16 @@ type Delivery struct {
 	SMSProvider   string
 	SMSSender     string
 }
+
+// Admin configures staff sign-in through an OpenID Connect provider such as Google Workspace. An empty Issuer disables it.
+type Admin struct {
+	Issuer        string
+	ClientID      string
+	ClientSecret  Secret
+	HostedDomain  string
+	EmailDomain   string
+	APIHost       string
+	SessionMaxAge time.Duration
+}
+
+func (a Admin) Enabled() bool { return a.Issuer != "" }
