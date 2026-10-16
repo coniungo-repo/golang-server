@@ -14,3 +14,4 @@ Dockerfile
 .air.toml
 tools.mod
 tools.sum
+fly.*.toml

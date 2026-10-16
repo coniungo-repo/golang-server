@@ -1,4 +1,4 @@
-.PHONY: run dev test test-db admin-invite lint vuln check build docker db-up db-down migrate migrate-down migration generate
+.PHONY: run dev test test-db admin-invite lint vuln check build docker db-up db-down migrate migrate-down migration generate deploy-staging deploy-production deploy-core-staging deploy-core-production
 
 ENV = if [ -f .env ]; then set -a; . ./.env; set +a; fi;
 COMPOSE = docker compose --env-file .env -f deploy/docker-compose.yml
@@ -58,3 +58,16 @@ admin-invite:
 generate:
 	@test -d queries || (echo "no queries/ yet: write the first query, then run make generate" && exit 1)
 	$(TOOL) sqlc generate
+
+deploy-staging:
+	fly deploy -c fly.staging.toml --build-arg VERSION=$(VERSION)
+
+deploy-production:
+	@test -z "$$(git status --porcelain)" || (echo "commit or stash changes before deploying to production" && exit 1)
+	fly deploy -c fly.production.toml --build-arg VERSION=$(VERSION)
+
+deploy-core-staging:
+	fly deploy -c deploy/fly/supertokens.staging.toml
+
+deploy-core-production:
+	fly deploy -c deploy/fly/supertokens.production.toml

@@ -22,9 +22,9 @@ Start these first. Several take days.
 
 | Piece | Setup |
 | --- | --- |
-| API | A Fly app from this repo's `Dockerfile`. HTTP service on internal port `8080`, health check `GET /livez`. Metrics under `[metrics]` (port `9091`, path `/metrics`), never under `[[services]]` |
+| API | `fly.staging.toml` and `fly.production.toml`: a Fly app from this repo's `Dockerfile` in London (`lhr`, the closest well-connected region to Nigeria), port `8080`, traffic gated on `GET /readyz`, rolling deploys, metrics under `[metrics]` on `9091`. Staging stops when idle; production keeps 2 machines running |
 | Postgres | Two databases on one server: the app database and `supertokens`, each with its own role. `deploy/postgres/init-supertokens.sh` creates the second and is safe to rerun. TLS with a certificate the API can verify (`sslmode=verify-full`). Backups on, for both databases |
-| SuperTokens core | A separate Fly app running `registry.supertokens.io/supertokens/supertokens-postgresql`, pinned to the version in `deploy/docker-compose.yml`. **No public service**: reachable only over Fly's private network. Core settings in [section 5](#5-supertokens-core-settings) |
+| SuperTokens core | `deploy/fly/supertokens.<env>.toml`: a separate Fly app running the image pinned in `deploy/docker-compose.yml`, reachable **only over Flycast** at `http://<core-app>.flycast`, with no public IP. Core settings in [section 5](#5-supertokens-core-settings) |
 | DNS (Cloudflare) | `api.` and `admin-api.` point at the Fly API app as **DNS only (grey cloud), not proxied**. If proxied, `Fly-Client-IP` becomes a Cloudflare address and every user shares one rate limit. Certificates for both names come from Fly (`fly certs add`) |
 | Frontend (Cloudflare) | Customer and admin apps on their own origins, calling the API with credentials |
 
@@ -42,7 +42,7 @@ Set them as Fly secrets (`fly secrets set ...`), never in `fly.toml`.
 
 ## 4. API settings
 
-Everything else keeps its default; see [configuration](configuration.md) for the full list.
+Settings that are not secret already live in `fly.staging.toml` and `fly.production.toml`; secrets are set with `fly secrets set`. A test (`internal/platform/config/fly_test.go`) loads each file's `[env]` with stand-in secrets through the production validation, so the files can't drift from what the API accepts. Everything else keeps its default; see [configuration](configuration.md) for the full list.
 
 ### Must change from local
 
@@ -51,7 +51,7 @@ Everything else keeps its default; see [configuration](configuration.md) for the
 | `APP_ENV` | `development` | `production` | Turns on every production check below, HSTS, JSON logs, and Swagger UI off |
 | `DATABASE_URL` | local, `sslmode=disable` | managed Postgres URL with `sslmode=verify-full` | Postgres provider. Secret |
 | `FINGERPRINT_SECRET` | placeholder | generated | Section 3. Secret |
-| `SUPERTOKENS_CONNECTION_URI` | `http://localhost:3567` | the core's private address, e.g. `http://<core-app>.internal:3567` | Fly private network |
+| `SUPERTOKENS_CONNECTION_URI` | `http://localhost:3567` | `http://<core-app>.flycast` | Set in `fly.<env>.toml` |
 | `SUPERTOKENS_API_KEY` | local value | generated | Section 3. Secret |
 | `SUPERTOKENS_API_DOMAIN` | `http://localhost:8080` | `https://api.getgbam.com` | Your API domain |
 | `SUPERTOKENS_WEBSITE_DOMAINS` | local apps | `https://app.getgbam.com,https://admin.getgbam.com` | Your frontend origins, https only |
@@ -112,10 +112,34 @@ Check SDK and core compatibility before upgrading either: the core's `/apiversio
 
 ## 6. First deploy, in order
 
+Shown for staging; use the production files, app names and targets for production. First replace the example domains in `fly.<env>.toml` with the real ones.
+
 1. Create both databases and roles; turn on backups.
-2. Deploy the core with its settings; confirm it answers on the private network only.
+2. Create the core, give it a private address only, set its secrets and deploy it:
+
+   ```bash
+   fly apps create getgbam-supertokens-staging
+   fly ips allocate-v6 --private -a getgbam-supertokens-staging
+   fly secrets set -a getgbam-supertokens-staging --stage POSTGRESQL_CONNECTION_URI='postgresql://…/supertokens' API_KEYS='…'
+   make deploy-core-staging
+   fly ips list -a getgbam-supertokens-staging
+   ```
+
+   The last command must show only the private address. Release any public one with `fly ips release`.
 3. Run migrations against the app database from your machine: open a tunnel with `fly proxy` to the database, then `DATABASE_URL=<tunnelled URL> make migrate`. The image has no migration tool.
-4. Set every API secret and setting above, then deploy the API. If it refuses to start, its log lists each problem.
+4. Create the API, set its secrets and deploy it:
+
+   ```bash
+   fly apps create getgbam-api-staging
+   fly secrets set -a getgbam-api-staging --stage \
+     DATABASE_URL='postgres://…?sslmode=verify-full' FINGERPRINT_SECRET='…' SUPERTOKENS_API_KEY='…' \
+     OIDC_CLIENT_ID='…' OIDC_CLIENT_SECRET='…' POSTMARK_SERVER_TOKEN='…' TERMII_API_KEY='…' TERMII_BASE_URL='https://…'
+   make deploy-staging
+   fly certs add staging-api.getgbam.com -a getgbam-api-staging
+   fly certs add staging-admin-api.getgbam.com -a getgbam-api-staging
+   ```
+
+   If the API refuses to start, `fly logs` lists each problem. Point the two DNS names at the app in Cloudflare (DNS only) as `fly certs` instructs. For production, `make deploy-production` refuses to run with uncommitted changes.
 5. Invite the first admin: `fly ssh console -C "/admin invite you@coniungolabs.com"` runs the admin tool inside the API app with its production settings.
 
 ## 7. Verify before real users

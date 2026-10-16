@@ -1,0 +1,62 @@
+# Staging API on Fly.io. Deploy with `make deploy-staging`.
+# Secrets are set with `fly secrets set` (see docs/production.md), never here.
+# The domains are examples: replace them with the real ones before the first deploy.
+
+app = "getgbam-api-staging"
+primary_region = "lhr"
+kill_signal = "SIGTERM"
+kill_timeout = 25
+
+[deploy]
+  strategy = "rolling"
+
+[env]
+  APP_NAME = "getgbam-api-staging"
+  LOG_LEVEL = "info"
+  HTTP_CLIENT_IP_HEADER = "Fly-Client-IP"
+  HTTP_DRAIN_DELAY = "5s"
+  METRICS_ADDR = ":9091"
+  DB_MAX_CONNS = "10"
+  SUPERTOKENS_CONNECTION_URI = "http://getgbam-supertokens-staging.flycast"
+  SUPERTOKENS_APP_NAME = "GetGbam"
+  SUPERTOKENS_API_DOMAIN = "https://staging-api.getgbam.com"
+  SUPERTOKENS_WEBSITE_DOMAINS = "https://staging-app.getgbam.com,https://staging-admin.getgbam.com"
+  CORS_ALLOWED_ORIGINS = "https://staging-app.getgbam.com,https://staging-admin.getgbam.com"
+  ADMIN_API_HOST = "staging-admin-api.getgbam.com"
+  OIDC_ISSUER = "https://accounts.google.com"
+  OIDC_HOSTED_DOMAIN = "coniungolabs.com"
+  ADMIN_EMAIL_DOMAIN = "coniungolabs.com"
+  EMAIL_PROVIDER = "postmark"
+  EMAIL_FROM = "GetGbam <hello@getgbam.com>"
+  SMS_PROVIDER = "termii"
+  SMS_SENDER = "GetGbam"
+  TERMII_CHANNEL = "dnd"
+  PHONE_DEFAULT_REGION = "NG"
+  PHONE_ALLOWED_REGIONS = "NG"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    timeout = "3s"
+    method = "GET"
+    path = "/readyz"
+
+[metrics]
+  port = 9091
+  path = "/metrics"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
