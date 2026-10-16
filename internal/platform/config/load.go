@@ -131,6 +131,9 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 		},
 		Security: Security{
 			FingerprintSecret: r.secret("FINGERPRINT_SECRET"),
+			BotCheck:          r.string("BOT_CHECK", BotCheckOff),
+			TurnstileSecret:   r.secret("TURNSTILE_SECRET_KEY"),
+			BotCheckTimeout:   r.duration("BOT_CHECK_TIMEOUT", 5*time.Second),
 		},
 		Docs: Docs{
 			Enabled: r.bool("API_DOCS_ENABLED", local),
@@ -203,6 +206,7 @@ func validate(r *reader, c Config) {
 
 	checkAuth(r, c.Auth, c.CORS.AllowedOrigins, prod)
 	checkFingerprintSecret(r, c.Security.FingerprintSecret, prod)
+	checkBotCheck(r, c.Security, c.Server.RequestTimeout, prod)
 	checkDelivery(r, c.Delivery, prod)
 	checkAdmin(r, c.Admin, prod)
 
@@ -414,4 +418,21 @@ func validSenderID(s string) bool {
 		}
 	}
 	return true
+}
+
+// turnstileTestSecretPrefix starts Cloudflare's dummy secret keys, which accept dummy tokens anyone can produce.
+const turnstileTestSecretPrefix = "x0000000000000000000000000000000A"
+
+func checkBotCheck(r *reader, s Security, requestTimeout time.Duration, prod bool) {
+	r.oneOf("BOT_CHECK", s.BotCheck, BotCheckOff, BotCheckTurnstile)
+	if s.BotCheck != BotCheckTurnstile {
+		return
+	}
+	r.require("TURNSTILE_SECRET_KEY", s.TurnstileSecret.IsSet())
+	if prod && len(s.TurnstileSecret.Reveal()) > 1 && strings.HasPrefix(s.TurnstileSecret.Reveal()[1:], turnstileTestSecretPrefix) {
+		r.fail("TURNSTILE_SECRET_KEY", "is one of Cloudflare's test keys, which accept a token anyone can produce")
+	}
+	if s.BotCheckTimeout >= requestTimeout {
+		r.fail("BOT_CHECK_TIMEOUT", "must be shorter than HTTP_REQUEST_TIMEOUT")
+	}
 }

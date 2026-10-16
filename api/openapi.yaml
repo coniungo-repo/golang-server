@@ -50,10 +50,11 @@ paths:
     post:
       tags: [Sign-in]
       summary: Send a sign-in code
-      description: Send exactly one of `email` or `phoneNumber`. Rate limited per destination and client IP.
+      description: Send exactly one of `email` or `phoneNumber`. Rate limited per destination and client IP. When the bot check is on, a failed or missing `X-Turnstile-Token` returns `GENERAL_ERROR`.
       operationId: createCode
       parameters:
         - $ref: "#/components/parameters/AuthMode"
+        - $ref: "#/components/parameters/TurnstileToken"
       requestBody:
         required: true
         content:
@@ -378,6 +379,8 @@ paths:
       operationId: startIdentity
       security:
         - accessToken: []
+      parameters:
+        - $ref: "#/components/parameters/TurnstileToken"
       requestBody:
         required: true
         content:
@@ -712,6 +715,14 @@ components:
       description: The `st-refresh-token` response header. Only for `POST /auth/session/refresh`.
 
   parameters:
+    TurnstileToken:
+      name: X-Turnstile-Token
+      in: header
+      required: false
+      description: Cloudflare Turnstile token from the widget. Required when the server runs with `BOT_CHECK=turnstile`; single use, valid 5 minutes.
+      schema:
+        type: string
+        maxLength: 2048
     AuthMode:
       name: st-auth-mode
       in: header

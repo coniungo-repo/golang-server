@@ -42,6 +42,9 @@ func (s *Service) overrideAPIs(original plessmodels.APIInterface) plessmodels.AP
 		if err != nil {
 			return plessmodels.CreateCodePOSTResponse{}, err
 		}
+		if msg := s.checkHuman(options.Req); msg != "" {
+			return plessmodels.CreateCodePOSTResponse{GeneralError: &supertokens.GeneralErrorResponse{Message: msg}}, nil
+		}
 		allowed, err := s.allowSend(options.Req, destination)
 		if err != nil {
 			return plessmodels.CreateCodePOSTResponse{}, err

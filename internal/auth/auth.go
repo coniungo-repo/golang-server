@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coniungo-repo/golang-server/internal/platform/botcheck"
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
@@ -39,6 +40,8 @@ type Deps struct {
 	UserLimit       *ratelimit.Limiter
 	DeliveryTimeout time.Duration
 	Metrics         *metrics.Metrics
+	BotCheck        botcheck.Verifier
+	BotCheckTimeout time.Duration
 }
 
 // Service is the initialised auth layer. SuperTokens keeps global state, so create one per process.
@@ -56,6 +59,9 @@ func New(d Deps) (*Service, error) {
 	limits := d.Config.RateLimits
 	if len(limits.Destination) == 0 || len(limits.ClientIP) == 0 || len(limits.SMSTotal) == 0 {
 		return nil, errors.New("auth: destination, client IP and SMS total rate limits are required")
+	}
+	if d.BotCheck == nil || d.BotCheckTimeout <= 0 {
+		return nil, errors.New("auth: a bot check (botcheck.Off to disable it) and its timeout are required")
 	}
 	if d.DeliveryTimeout <= 0 {
 		return nil, errors.New("auth: a delivery timeout is required")
@@ -117,9 +123,9 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// CORSHeaders lists the request headers SuperTokens frontends send.
+// CORSHeaders lists the request headers SuperTokens frontends send, plus the bot check token.
 func (s *Service) CORSHeaders() []string {
-	return supertokens.GetAllCORSHeaders()
+	return append(supertokens.GetAllCORSHeaders(), BotCheckHeader)
 }
 
 // RevokeUserSessions signs userID out everywhere, across every identity they sign in with.

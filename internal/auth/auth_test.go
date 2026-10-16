@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coniungo-repo/golang-server/internal/platform/botcheck"
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
@@ -56,6 +57,8 @@ func testService(t *testing.T) (*Service, *recorder) {
 		Config:          config.Auth{AppName: "GetGbam", WebsiteDomains: []string{"https://app.example.com", "https://pro.example.com"}},
 		Log:             slog.New(slog.NewTextHandler(io.Discard, nil)),
 		DeliveryTimeout: time.Second,
+		BotCheck:        botcheck.Off{},
+		BotCheckTimeout: time.Second,
 		Phones:          phones,
 		Email:           rec,
 		SMS:             smsRecorder{rec},

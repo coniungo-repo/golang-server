@@ -34,6 +34,7 @@ kill_timeout = 25
   TERMII_CHANNEL = "dnd"
   PHONE_DEFAULT_REGION = "NG"
   PHONE_ALLOWED_REGIONS = "NG"
+  BOT_CHECK = "turnstile"
 
 [http_service]
   internal_port = 8080

@@ -163,6 +163,16 @@ Counts live in `sign_in_attempts`, keyed by an HMAC with `FINGERPRINT_SECRET`, s
 
 Every auth route is also covered by the general per-IP request limit, and session routes by the per-user limit. See [operations](operations.md#rate-limiting).
 
+## Bot check
+
+With `BOT_CHECK=turnstile`, sending a sign-in code (`POST /auth/signinup/code`) and adding a contact (`POST /api/v1/me/identities`) require a Cloudflare Turnstile token in the `X-Turnstile-Token` header. The API verifies it with Cloudflare before any rate limit is used or any code is sent, so scripted requests never cost an SMS. Resending a code doesn't need a token: the device was created by a checked request and per-destination limits cap resends.
+
+- A missing, invalid, expired or reused token: sign-in answers `GENERAL_ERROR` ("Please complete the check and try again."); adding a contact answers `403`.
+- Turnstile unreachable: the request is refused (fail closed) with a "try again in a moment" message, `503` when adding a contact, and logged as `bot check unavailable`.
+- Every check is counted in `bot_checks_total{result="ok"|"failed"|"error"}`.
+
+Web apps render the Turnstile widget (`action` optional) and send the token with the code request; each token is single use and valid for 5 minutes. Native apps can run the widget in a WebView; App Attest (iOS) and Play Integrity (Android) are the longer-term option. Until every client sends tokens, leave `BOT_CHECK=off` for the environments they talk to.
+
 The core separately locks a code after 5 wrong attempts, and codes expire after 10 minutes (`PASSWORDLESS_CODE_LIFETIME`, `PASSWORDLESS_MAX_CODE_INPUT_ATTEMPTS`).
 
 ## Delivery

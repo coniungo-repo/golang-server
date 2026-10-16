@@ -7,6 +7,7 @@ import (
 
 	"github.com/coniungo-repo/golang-server/internal/auth"
 	"github.com/coniungo-repo/golang-server/internal/health"
+	"github.com/coniungo-repo/golang-server/internal/platform/botcheck"
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/database"
@@ -66,6 +67,12 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 	ipLimit := ratelimit.New(clk, cfg.Limits.ClientIP)
 	userLimit := ratelimit.New(clk, cfg.Limits.User)
 
+	bot, err := newBotCheck(cfg.Security)
+	if err != nil {
+		pool.Close()
+		return nil, err
+	}
+
 	authService, err := auth.New(auth.Deps{
 		Config:          cfg.Auth,
 		Admin:           cfg.Admin,
@@ -80,6 +87,8 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 		UserLimit:       userLimit,
 		DeliveryTimeout: cfg.Delivery.Timeout,
 		Metrics:         m,
+		BotCheck:        bot,
+		BotCheckTimeout: cfg.Security.BotCheckTimeout,
 	})
 	if err != nil {
 		pool.Close()
@@ -153,4 +162,15 @@ func newSMSSender(cfg config.Delivery, log *slog.Logger) (sms.Sender, error) {
 func (d *dependencies) close() {
 	d.Log.Info("closing dependencies")
 	d.DB.Close()
+}
+
+func newBotCheck(cfg config.Security) (botcheck.Verifier, error) {
+	switch cfg.BotCheck {
+	case config.BotCheckTurnstile:
+		return botcheck.NewTurnstile(botcheck.TurnstileConfig{Secret: cfg.TurnstileSecret.Reveal()})
+	case config.BotCheckOff:
+		return botcheck.Off{}, nil
+	default:
+		return nil, fmt.Errorf("unknown bot check %q", cfg.BotCheck)
+	}
 }

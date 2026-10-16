@@ -125,12 +125,20 @@ type CORS struct {
 
 type Security struct {
 	FingerprintSecret Secret
+	BotCheck          string
+	TurnstileSecret   Secret
+	BotCheckTimeout   time.Duration
 }
 
 type Phone struct {
 	DefaultRegion  string
 	AllowedRegions []string
 }
+
+const (
+	BotCheckOff       = "off"
+	BotCheckTurnstile = "turnstile"
+)
 
 const (
 	ProviderLog      = "log"

@@ -88,6 +88,14 @@ func (s *Service) startIdentity(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, r, http.StatusConflict, alreadyLinkedMessage)
 		return
 	}
+	if msg := s.checkHuman(r); msg != "" {
+		status := http.StatusForbidden
+		if msg == botCheckUnavailableMessage {
+			status = http.StatusServiceUnavailable
+		}
+		respond.Error(w, r, status, msg)
+		return
+	}
 	destination := string(kind) + ":" + subject
 	allowed, err := s.allowSend(r, destination)
 	if err != nil {

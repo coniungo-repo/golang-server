@@ -50,6 +50,9 @@ All configuration comes from environment variables. The server validates everyth
 | --- | --- | --- |
 | `CORS_ALLOWED_ORIGINS` | local apps outside production, none in production | Comma-separated `scheme://host[:port]`. No wildcards, paths or trailing slashes |
 | `CORS_MAX_AGE` | `10m` | How long browsers may cache a preflight, at most `24h` |
+| `BOT_CHECK` | `off` | `turnstile` makes sign-in code requests and adding a contact carry a Cloudflare Turnstile token in `X-Turnstile-Token`. Fails closed: if Turnstile can't be reached, no code is sent. Production warns at startup while it is `off` |
+| `TURNSTILE_SECRET_KEY` | empty | The widget's secret key. Required with `turnstile`. Cloudflare's test keys (`1x…`, `2x…`, `3x…`) are refused in production |
+| `BOT_CHECK_TIMEOUT` | `5s` | Limit on each Turnstile check. Shorter than `HTTP_REQUEST_TIMEOUT` |
 | `FINGERPRINT_SECRET` | required | At least 32 characters. Generate with `openssl rand -hex 32`. The example placeholder is rejected in production |
 
 ## Auth (SuperTokens)

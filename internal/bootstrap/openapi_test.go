@@ -13,6 +13,7 @@ import (
 	"github.com/coniungo-repo/golang-server/api"
 	"github.com/coniungo-repo/golang-server/internal/auth"
 	"github.com/coniungo-repo/golang-server/internal/health"
+	"github.com/coniungo-repo/golang-server/internal/platform/botcheck"
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
@@ -172,11 +173,17 @@ func testAuthService(t *testing.T) *auth.Service {
 		Config: cfg.Auth, Admin: cfg.Admin, Clock: clock.New(), Log: log, Phones: phones,
 		Users:     users.New(nil, clock.New(), cfg.Admin.EmailDomain),
 		Limiter:   auth.NewLimiter(nil, "secret", clock.New(), time.Hour),
-		UserLimit: ratelimit.New(clock.New(), nil), DeliveryTimeout: time.Second,
+		UserLimit: ratelimit.New(clock.New(), nil), DeliveryTimeout: time.Second, BotCheck: botcheck.Off{}, BotCheckTimeout: time.Second,
 		Email: email.LogSender{Log: log}, SMS: sms.LogSender{Log: log},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return s
+}
+
+func TestCORSAllowsBotCheckHeader(t *testing.T) {
+	if !slices.Contains(testAuthService(t).CORSHeaders(), auth.BotCheckHeader) {
+		t.Fatal("browsers must be allowed to send the bot check header")
+	}
 }

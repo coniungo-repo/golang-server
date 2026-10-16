@@ -14,6 +14,7 @@ Start these first. Several take days.
 | --- | --- | --- | --- |
 | Termii | Open an account. Apply for the sender ID (e.g. `GetGbam`). Ask support to enable the **DND route** | `TERMII_API_KEY`, `TERMII_BASE_URL` (dashboard) | Sender ID approval: days to weeks |
 | Postmark | Create a server. Add the sending domain and publish its SPF, DKIM and DMARC records in Cloudflare DNS | `POSTMARK_SERVER_TOKEN` | Domain verification: minutes to a day; account approval can take longer |
+| Cloudflare Turnstile | In the Cloudflare dashboard, add a Turnstile widget for each frontend hostname (managed or invisible mode) | the site key (for the apps) and `TURNSTILE_SECRET_KEY` | Minutes |
 | Google Cloud | In a project owned by the Coniungo Workspace: OAuth consent screen **Internal**, OAuth client of type Web application, redirect URI `https://admin.getgbam.com/auth/callback/staff` | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | Minutes |
 | Google Workspace | Enforce 2-step verification (passkeys or security keys) for staff with admin access | | Minutes |
 | Fly.io | Organisation, payment method, apps below | | Minutes |
@@ -134,7 +135,8 @@ Shown for staging; use the production files, app names and targets for productio
    fly apps create getgbam-api-staging
    fly secrets set -a getgbam-api-staging --stage \
      DATABASE_URL='postgres://…?sslmode=verify-full' FINGERPRINT_SECRET='…' SUPERTOKENS_API_KEY='…' \
-     OIDC_CLIENT_ID='…' OIDC_CLIENT_SECRET='…' POSTMARK_SERVER_TOKEN='…' TERMII_API_KEY='…' TERMII_BASE_URL='https://…'
+     OIDC_CLIENT_ID='…' OIDC_CLIENT_SECRET='…' POSTMARK_SERVER_TOKEN='…' TERMII_API_KEY='…' TERMII_BASE_URL='https://…' \
+     TURNSTILE_SECRET_KEY='…'
    make deploy-staging
    fly certs add staging-api.getgbam.com -a getgbam-api-staging
    fly certs add staging-admin-api.getgbam.com -a getgbam-api-staging
@@ -149,6 +151,7 @@ Shown for staging; use the production files, app names and targets for productio
 | --- | --- |
 | `GET https://api.getgbam.com/livez` and `/readyz` | `200` |
 | Phone sign-in on MTN, Airtel, Glo and 9mobile numbers, including one on DND | Code arrives within seconds from the sender ID; sign-in works |
+| Code request without a Turnstile token | Refused with "Please complete the check"; `bot_checks_total{result="failed"}` goes up |
 | Phone sign-in with a non-Nigerian number | Refused with the "use your email" message |
 | Email sign-in | Code arrives in the inbox, not spam; check the headers pass SPF, DKIM and DMARC |
 | Admin Google sign-in on `admin.getgbam.com` | Works for the invited admin; refused for an uninvited staff account and on the customer host |
