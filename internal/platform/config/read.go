@@ -39,6 +39,19 @@ func (r *reader) path(key, fallback string) string {
 	return v
 }
 
+func (r *reader) bool(key string, fallback bool) bool {
+	v := r.raw(key)
+	if v == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		r.fail(key, "%q is not true or false", v)
+		return fallback
+	}
+	return b
+}
+
 func (r *reader) secret(key string) Secret {
 	return Secret(r.raw(key))
 }

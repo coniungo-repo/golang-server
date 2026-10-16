@@ -27,6 +27,7 @@ type Config struct {
 	Admin    Admin
 	Security Security
 	Phone    Phone
+	Docs     Docs
 }
 
 type App struct {
@@ -36,6 +37,11 @@ type App struct {
 }
 
 func (a App) IsProduction() bool { return a.Environment == Production }
+
+// Docs serves the OpenAPI description and Swagger UI. On by default outside production.
+type Docs struct {
+	Enabled bool
+}
 
 type Server struct {
 	Host              string

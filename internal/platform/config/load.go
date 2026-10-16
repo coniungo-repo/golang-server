@@ -108,6 +108,9 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 		Security: Security{
 			FingerprintSecret: r.secret("FINGERPRINT_SECRET"),
 		},
+		Docs: Docs{
+			Enabled: r.bool("API_DOCS_ENABLED", local),
+		},
 		Phone: Phone{
 			DefaultRegion:  r.string("PHONE_DEFAULT_REGION", ""),
 			AllowedRegions: r.list("PHONE_ALLOWED_REGIONS", nil),

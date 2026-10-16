@@ -18,6 +18,8 @@ make dev
 
 `make db-up` starts Postgres and a self-hosted SuperTokens core. The server listens on `http://localhost:8080`; check it with `curl localhost:8080/readyz`. Sign-in codes are printed to the console until real email and SMS providers are configured.
 
+Open [localhost:8080/docs/](http://localhost:8080/docs/) to explore and call the API in Swagger UI, including signing in with a code from the console.
+
 ## Commands
 
 | Command | What it does |
@@ -42,12 +44,14 @@ Dev tools (air, goose, sqlc, staticcheck, govulncheck) are pinned in `tools.mod`
 ## Layout
 
 ```
+api                     OpenAPI description of every route
 cmd/api                 API server
 cmd/admin               admin invite CLI
 internal/bootstrap      wiring: config, dependencies, router
 internal/auth           sign-in, sessions, admin sign-in, authorisation, rate limiting
 internal/users          users, identities, roles, admin invites
 internal/health         liveness and readiness probes
+internal/docs           Swagger UI (vendored swagger-ui-dist) for api/openapi.yaml
 internal/store          sqlc-generated queries
 internal/platform       shared infrastructure (config, logging, middleware, HTTP helpers)
 migrations              goose SQL migrations
@@ -57,6 +61,7 @@ deploy                  local Docker Compose
 
 ## Documentation
 
+- [API reference](api/openapi.yaml), browsable at `/docs/` locally
 - [Architecture](docs/architecture.md)
 - [Auth](docs/auth.md)
 - [Configuration](docs/configuration.md)
