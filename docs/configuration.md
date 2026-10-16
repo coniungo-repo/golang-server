@@ -92,4 +92,4 @@ Leave `OIDC_ISSUER` empty to disable admin sign-in.
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `PHONE_DEFAULT_REGION` | empty | ISO 3166-1 alpha-2 code, e.g. `NG`. Lets users omit the country code. Empty requires `+` |
-| `PHONE_ALLOWED_REGIONS` | all | Comma-separated region codes to accept. Must include the default region |
+| `PHONE_ALLOWED_REGIONS` | all outside production, required in production | Comma-separated region codes to accept. Must include the default region. Only the countries you send codes to, since every code is a paid SMS |

@@ -166,6 +166,9 @@ func validate(r *reader, c Config) {
 	checkAdmin(r, c.Admin, prod)
 
 	if prod {
+		if len(c.Phone.AllowedRegions) == 0 {
+			r.fail("PHONE_ALLOWED_REGIONS", "is required in production: list the countries you send codes to, or anyone can run up SMS costs on expensive international routes")
+		}
 		if c.Database.MaxConns < minProductionConns {
 			r.fail("DB_MAX_CONNS", "too small for production")
 		}

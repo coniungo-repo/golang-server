@@ -81,6 +81,7 @@ func prodEnv(overrides map[string]string) map[string]string {
 		"SUPERTOKENS_API_DOMAIN":      "https://api.example.com",
 		"SUPERTOKENS_WEBSITE_DOMAINS": "https://app.example.com",
 		"EMAIL_FROM":                  "GetGbam <hello@getgbam.com>",
+		"PHONE_ALLOWED_REGIONS":       "NG",
 	}
 	for k, v := range overrides {
 		base[k] = v
@@ -115,6 +116,7 @@ func TestLoadRejects(t *testing.T) {
 		{"website not in cors", map[string]string{"SUPERTOKENS_WEBSITE_DOMAINS": "http://localhost:3000"}, "must also be in CORS_ALLOWED_ORIGINS"},
 		{"short api key", map[string]string{"SUPERTOKENS_API_KEY": "short"}, "SUPERTOKENS_API_KEY: must be at least"},
 		{"prod missing auth", map[string]string{"APP_ENV": "production", "DATABASE_URL": prodURL}, "SUPERTOKENS_CONNECTION_URI: is required"},
+		{"prod open phone regions", prodEnv(map[string]string{"PHONE_ALLOWED_REGIONS": ""}), "PHONE_ALLOWED_REGIONS: is required in production"},
 		{"prod missing api key", prodEnv(map[string]string{"SUPERTOKENS_API_KEY": ""}), "SUPERTOKENS_API_KEY: is required"},
 		{"prod placeholder api key", prodEnv(map[string]string{"SUPERTOKENS_API_KEY": "change-me-to-a-real-api-key"}), "SUPERTOKENS_API_KEY: is still the example placeholder"},
 		{"prod http api domain", prodEnv(map[string]string{"SUPERTOKENS_API_DOMAIN": "http://api.example.com"}), "must use https"},
