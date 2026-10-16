@@ -8,10 +8,54 @@ import (
 	"time"
 )
 
+type AdminAuditLog struct {
+	ID        int64     `json:"id"`
+	ActorID   *string   `json:"actor_id"`
+	Action    string    `json:"action"`
+	Target    string    `json:"target"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type AdminInvite struct {
+	ID         int64      `json:"id"`
+	Email      string     `json:"email"`
+	InvitedBy  *string    `json:"invited_by"`
+	InvitedAt  time.Time  `json:"invited_at"`
+	AcceptedBy *string    `json:"accepted_by"`
+	AcceptedAt *time.Time `json:"accepted_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
+}
+
 // Sign-in code requests for rate limiting. fingerprint is an HMAC of the email, phone or IP, never the raw value.
 type SignInAttempt struct {
 	ID          int64     `json:"id"`
 	Kind        string    `json:"kind"`
 	Fingerprint []byte    `json:"fingerprint"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+type User struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UserIdentity struct {
+	ID     int64  `json:"id"`
+	UserID string `json:"user_id"`
+	Kind   string `json:"kind"`
+	// E.164 phone, lowercased email, or issuer|sub for OpenID Connect. Never an email for oidc: emails can be renamed or reissued.
+	Subject           string    `json:"subject"`
+	Email             *string   `json:"email"`
+	SupertokensUserID string    `json:"supertokens_user_id"`
+	VerifiedAt        time.Time `json:"verified_at"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+type UserRole struct {
+	UserID    string    `json:"user_id"`
+	Role      string    `json:"role"`
+	GrantedBy *string   `json:"granted_by"`
+	GrantedAt time.Time `json:"granted_at"`
 }
