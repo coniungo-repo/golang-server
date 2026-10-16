@@ -118,10 +118,3 @@ func (s *Service) origin(r *http.Request, _ supertokens.UserContext) (string, er
 	}
 	return domains[0], nil
 }
-
-func (s *Service) onAPIError(err error, r *http.Request, w http.ResponseWriter) {
-	s.deps.Log.ErrorContext(r.Context(), "auth request failed", "err", err)
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusInternalServerError)
-	_, _ = w.Write([]byte(`{"message":"Something went wrong on our side. Try again in a moment."}`))
-}
