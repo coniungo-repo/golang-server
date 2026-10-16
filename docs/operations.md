@@ -82,11 +82,13 @@ Set `METRICS_ADDR` (e.g. `:9091`) to serve Prometheus metrics at `/metrics` on i
 | `supertokens_core_request_duration_seconds` | | Core latency |
 | `db_pool_connections` | `state` = `acquired`, `idle`, `constructing` | Pool use against `db_pool_max_connections` |
 | `db_pool_empty_acquires_total`, `db_pool_acquire_wait_seconds_total`, `db_pool_canceled_acquires_total` | | Requests waiting for a connection: the first sign of an undersized pool or a stuck query |
+| `sms_total_counted_total` | | Texts to numbers without an account, which count toward `AUTH_RATE_LIMIT_SMS_TOTAL` |
+| `sms_total_limit` | `window` = `1h`, `24h` | That setting's ceilings, so alerts follow it when it changes |
 | `app_build_info` | `version` | Which version is running |
 
 Go runtime (`go_*`) and process (`process_*`) metrics are included.
 
-Starting alerts:
+Starting alerts (see [SMS spend](#sms-spend) for the last two):
 
 | Alert | Query |
 | --- | --- |
@@ -95,8 +97,24 @@ Starting alerts:
 | Pool saturated | `max(db_pool_connections{state="acquired"}) / max(db_pool_max_connections) > 0.8` |
 | Core unhealthy | `sum(rate(supertokens_core_requests_total{code!~"2.."}[5m])) > 0` |
 | Code-send abuse | `sum(rate(rate_limited_total{limit="code_send"}[15m])) * 900 > 50` |
+| SMS total nearing its hourly ceiling | `sum(increase(sms_total_counted_total[1h])) > 0.6 * max(sms_total_limit{window="1h"})` |
+| SMS total nearing its daily ceiling | `sum(increase(sms_total_counted_total[24h])) > 0.6 * max(sms_total_limit{window="24h"})` |
 
 Labels never hold user IDs, phones, emails or raw paths, so the number of series stays small.
+
+## SMS spend
+
+Every phone code is a paid text, so three things bound the spend:
+
+1. `PHONE_ALLOWED_REGIONS=NG` and mobile-only numbers, so no international or premium routes.
+2. Per-number and per-IP limits on code sends.
+3. `AUTH_RATE_LIMIT_SMS_TOTAL`, default `1000/1h,5000/24h`: a ceiling on texts to numbers that don't have an account yet, shared by every instance. It stops SMS pumping, where an attacker sends one code each to thousands of new numbers from many IPs and no per-number or per-IP limit trips. Numbers already on an account are never counted, so returning users keep signing in even if it trips. New sign-ups over it are told to use email, which is not capped this way.
+
+The worst case for a bad day is the daily ceiling times your Termii price per text. Pick the daily number as what you are willing to lose in one night, and the hourly one well above your busiest real hour.
+
+Set the two "SMS total nearing" alerts from [Metrics](#metrics). They fire at 60% of either ceiling, which is your cue to check whether the traffic is real: real sign-ups come with matching successful sign-ins, pumping does not. If it is real, raise the setting (`fly secrets set` or `[env]` in `fly.<env>.toml`, then redeploy; takes about a minute). If it is not, leave it; the ceiling is doing its job.
+
+Fly's managed Grafana (`fly-metrics.net`) has these metrics. Add the queries as Grafana alert rules with an email or Slack contact point.
 
 ## Rate limiting
 

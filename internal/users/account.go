@@ -35,6 +35,15 @@ func (s *Service) ListIdentities(ctx context.Context, userID string) ([]LinkedId
 	return out, nil
 }
 
+// IsKnownContact reports whether kind and subject already belong to any account, without saying whose.
+func (s *Service) IsKnownContact(ctx context.Context, kind Kind, subject string) (bool, error) {
+	_, err := store.New(s.db).GetIdentityBySubject(ctx, store.GetIdentityBySubjectParams{Kind: string(kind), Subject: subject})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // HasIdentity reports whether kind and subject are already linked to userID. It says nothing about other users.
 func (s *Service) HasIdentity(ctx context.Context, userID string, kind Kind, subject string) (bool, error) {
 	row, err := store.New(s.db).GetIdentityBySubject(ctx, store.GetIdentityBySubjectParams{Kind: string(kind), Subject: subject})

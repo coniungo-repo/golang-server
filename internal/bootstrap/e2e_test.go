@@ -599,6 +599,9 @@ func TestAuthEndToEnd(t *testing.T) {
 			`supertokens_core_requests_total{code="200"}`,
 			`db_pool_connections{state="idle"}`,
 			`db_pool_max_connections`,
+			`sms_total_counted_total`,
+			`sms_total_limit{window="1h"} 1000`,
+			`sms_total_limit{window="24h"} 5000`,
 		} {
 			if !strings.Contains(body, want) {
 				t.Errorf("missing %q", want)

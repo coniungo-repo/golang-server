@@ -2,9 +2,11 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,6 +14,8 @@ import (
 
 	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
+	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
+	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -121,10 +125,11 @@ func TestLimiterPrune(t *testing.T) {
 }
 
 func TestSMSTotalCapsTextsOnly(t *testing.T) {
-	l, _ := testLimiter(t)
+	l, clk := testLimiter(t)
 	wide := []config.RateWindow{{Limit: 100, Period: time.Hour}}
+	m := metrics.New("test")
 	s := &Service{
-		deps:              Deps{Limiter: l},
+		deps:              Deps{Limiter: l, Users: users.New(l.db, clk, ""), Metrics: m},
 		destinationPolicy: Policy{Kind: kindDestination, Windows: wide},
 		clientPolicy:      Policy{Kind: kindClientIP, Windows: wide},
 		smsTotalPolicy:    Policy{Kind: kindSMSTotal, Windows: []config.RateWindow{{Limit: 2, Period: time.Hour}}},
@@ -148,7 +153,33 @@ func TestSMSTotalCapsTextsOnly(t *testing.T) {
 	if !send("203.0.113.3", "email:ada@example.com") {
 		t.Fatal("emails must not count against the SMS total")
 	}
+
+	returning := fmt.Sprintf("+23480%08d", time.Now().UnixNano()%100000000)
+	if _, err := s.deps.Users.ResolveCustomer(context.Background(), users.Identity{
+		Kind: users.KindPhone, Subject: returning, SupertokensUserID: "st-" + returning + "-" + t.Name(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !send("203.0.113.4", "phone:"+returning) {
+		t.Fatal("a number that already has an account must not be held back by the SMS total")
+	}
+
+	rr := httptest.NewRecorder()
+	m.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(rr.Body.String(), "sms_total_counted_total 2") {
+		t.Fatalf("want 2 texts counted toward the total (new numbers only), got:\n%s", grepLines(rr.Body.String(), "sms_total"))
+	}
 	if got := tooManyCodes("phone:+2348031234563"); got != tooManyTextsMessage {
 		t.Fatalf("texts should point to email, got %q", got)
 	}
+}
+
+func grepLines(s, substr string) string {
+	var out []string
+	for _, l := range strings.Split(s, "\n") {
+		if strings.Contains(l, substr) {
+			out = append(out, l)
+		}
+	}
+	return strings.Join(out, "\n")
 }

@@ -111,18 +111,30 @@ func contactKey(emailAddr, phoneNumber *string) (string, error) {
 	}
 }
 
-// allowSend checks and records a code send against the client IP and destination limits, and for texts the SMS total. Nothing is recorded when it refuses.
+// allowSend checks and records a code send against the client IP and destination limits, and texts to numbers without an account against the SMS total. Returning users are never held back by the total, which only exists to stop texts to new numbers piling up. Nothing is recorded when it refuses.
 func (s *Service) allowSend(r *http.Request, destination string) (bool, error) {
 	attempts := []Attempt{
 		{Policy: s.clientPolicy, Value: request.ClientIP(r, s.deps.ClientIPHeader)},
 		{Policy: s.destinationPolicy, Value: destination},
 	}
-	if strings.HasPrefix(destination, phoneDestinationPrefix) {
-		attempts = append(attempts, Attempt{Policy: s.smsTotalPolicy, Value: smsTotalAttemptValue})
+	countsTowardTotal := false
+	if number, ok := strings.CutPrefix(destination, phoneDestinationPrefix); ok {
+		known, err := s.deps.Users.IsKnownContact(r.Context(), users.KindPhone, number)
+		if err != nil {
+			return false, err
+		}
+		if !known {
+			countsTowardTotal = true
+			attempts = append(attempts, Attempt{Policy: s.smsTotalPolicy, Value: smsTotalAttemptValue})
+		}
 	}
 	allowed, err := s.deps.Limiter.Allow(r.Context(), attempts...)
-	if err == nil && !allowed {
+	switch {
+	case err != nil:
+	case !allowed:
 		s.deps.Metrics.RateLimited(metrics.LimitCodeSend)
+	case countsTowardTotal:
+		s.deps.Metrics.SMSTotalCounted()
 	}
 	return allowed, err
 }

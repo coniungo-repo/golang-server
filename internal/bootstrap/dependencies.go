@@ -58,6 +58,7 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 	clk := clock.New()
 	m := metrics.New(cfg.App.Version)
 	m.RegisterPool(pool)
+	m.SetSMSTotalLimits(cfg.Auth.RateLimits.SMSTotal)
 	emailSender = m.Email(emailSender)
 	smsSender = m.SMS(smsSender)
 	limiter := auth.NewLimiter(pool, cfg.Security.FingerprintSecret.Reveal(), clk, cfg.Auth.RateLimits.Retention())
