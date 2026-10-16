@@ -27,6 +27,8 @@ func (h *Handler) Register(mux route.Mux) {
 }
 ```
 
+Describe every new route in `api/openapi.yaml`, with its request body, responses and the security it needs. `TestOpenAPIMatchesRoutes` fails if a served route is missing from the spec or the spec lists one that isn't served.
+
 Handlers should:
 
 - decode bodies with `request.Decode`, and answer a `*request.Error` with its `Status` and `Message`
@@ -68,3 +70,4 @@ store(n.E164())
 | `platform/requestid` | Request ID generation and context storage |
 | `platform/route` | Path prefixing for route groups |
 | `platform/clock` | Injectable time source for tests |
+| `docs` | Serves `api/openapi.yaml` and Swagger UI when `API_DOCS_ENABLED`, with its own Content-Security-Policy |

@@ -10,6 +10,7 @@ All configuration comes from environment variables. The server validates everyth
 | `APP_NAME` | `golang-server` | Added to every log line |
 | `APP_VERSION` | `unknown` | Set by the Docker build |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
+| `API_DOCS_ENABLED` | `true` outside production, `false` in production | Serves `/openapi.yaml` and Swagger UI at `/docs/` |
 
 ## HTTP
 

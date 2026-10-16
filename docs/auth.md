@@ -38,7 +38,7 @@ Identities are never linked automatically, and never by matching addresses. A si
 
 ## Endpoints
 
-Use the SuperTokens frontend SDKs (web, React Native, iOS, Android). They call:
+Use the SuperTokens frontend SDKs (web, React Native, iOS, Android). They call the routes below; full request and response shapes are in `api/openapi.yaml` and at `/docs/` locally.
 
 | Method | Path | Purpose |
 | --- | --- | --- |

@@ -1,0 +1,812 @@
+openapi: 3.1.0
+info:
+  title: golang-server API
+  version: v1
+  description: |
+    Every route the API serves, including the SuperTokens sign-in routes under `/auth`.
+
+    **Signing in from this page**
+
+    1. `POST /auth/signinup/code` with your phone number. Locally the code is printed in the server log.
+    2. `POST /auth/signinup/code/consume` with the `deviceId`, `preAuthSessionId` and code.
+    3. Copy the `st-access-token` response header into **Authorize**.
+
+    Every request here sends `st-auth-mode: header`, so tokens come back in headers, as they do for the native apps.
+    Access tokens last 15 minutes; refresh with `POST /auth/session/refresh` and the `st-refresh-token`.
+
+    Admin routes and Google sign-in only answer on `ADMIN_API_HOST`.
+servers:
+  - url: /
+tags:
+  - name: Health
+  - name: Sign-in
+    description: Served by the SuperTokens middleware. Bodies use camelCase and every response has a `status`.
+  - name: Account
+  - name: Admin
+    description: Admin host only, with a Google session younger than `ADMIN_SESSION_MAX_AGE`.
+
+paths:
+  /livez:
+    get:
+      tags: [Health]
+      summary: Liveness
+      operationId: live
+      responses:
+        "200":
+          $ref: "#/components/responses/Status"
+
+  /readyz:
+    get:
+      tags: [Health]
+      summary: Readiness, including the database
+      operationId: ready
+      responses:
+        "200":
+          $ref: "#/components/responses/Status"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /auth/signinup/code:
+    post:
+      tags: [Sign-in]
+      summary: Send a sign-in code
+      description: Send exactly one of `email` or `phoneNumber`. Rate limited per destination and client IP.
+      operationId: createCode
+      parameters:
+        - $ref: "#/components/parameters/AuthMode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                phoneNumber:
+                  type: string
+                  description: E.164, or local format in `PHONE_DEFAULT_REGION`.
+            examples:
+              phone:
+                value: { phoneNumber: "+2348031234567" }
+              email:
+                value: { email: "ada@example.com" }
+      responses:
+        "200":
+          description: "`OK`, or `GENERAL_ERROR` when rate limited or the contact is invalid."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [OK, GENERAL_ERROR]
+                  deviceId:
+                    type: string
+                  preAuthSessionId:
+                    type: string
+                  flowType:
+                    type: string
+                    enum: [USER_INPUT_CODE]
+                  message:
+                    type: string
+
+  /auth/signinup/code/resend:
+    post:
+      tags: [Sign-in]
+      summary: Resend the code
+      operationId: resendCode
+      parameters:
+        - $ref: "#/components/parameters/AuthMode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Device"
+      responses:
+        "200":
+          description: "`OK`, `RESTART_FLOW_ERROR`, or `GENERAL_ERROR` when rate limited."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuperTokensStatus"
+
+  /auth/signinup/code/consume:
+    post:
+      tags: [Sign-in]
+      summary: Exchange the code for a session
+      description: On `OK` the tokens are in the `st-access-token`, `st-refresh-token` and `front-token` response headers.
+      operationId: consumeCode
+      parameters:
+        - $ref: "#/components/parameters/AuthMode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/Device"
+                - type: object
+                  required: [userInputCode]
+                  properties:
+                    userInputCode:
+                      type: string
+                      example: "123456"
+      responses:
+        "200":
+          description: |
+            `OK`; `INCORRECT_USER_INPUT_CODE_ERROR` or `EXPIRED_USER_INPUT_CODE_ERROR` with attempt counts;
+            `RESTART_FLOW_ERROR`; or `GENERAL_ERROR` for a suspended account.
+          headers:
+            st-access-token:
+              $ref: "#/components/headers/AccessToken"
+            st-refresh-token:
+              $ref: "#/components/headers/RefreshToken"
+            front-token:
+              $ref: "#/components/headers/FrontToken"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [OK, INCORRECT_USER_INPUT_CODE_ERROR, EXPIRED_USER_INPUT_CODE_ERROR, RESTART_FLOW_ERROR, GENERAL_ERROR]
+                  createdNewUser:
+                    type: boolean
+                  user:
+                    type: object
+                    description: The SuperTokens user. Use `GET /api/v1/me` for our user ID.
+                  failedCodeInputAttemptCount:
+                    type: integer
+                  maximumCodeInputAttempts:
+                    type: integer
+                  message:
+                    type: string
+
+  /auth/session/refresh:
+    post:
+      tags: [Sign-in]
+      summary: Refresh the session
+      description: "Send the refresh token as `Authorization: Bearer <st-refresh-token>`. New tokens come back in headers."
+      operationId: refreshSession
+      security:
+        - refreshToken: []
+      parameters:
+        - $ref: "#/components/parameters/AuthMode"
+      responses:
+        "200":
+          description: Refreshed.
+          headers:
+            st-access-token:
+              $ref: "#/components/headers/AccessToken"
+            st-refresh-token:
+              $ref: "#/components/headers/RefreshToken"
+            front-token:
+              $ref: "#/components/headers/FrontToken"
+        "401":
+          description: The refresh token is missing, expired or revoked. Sign in again.
+
+  /auth/signout:
+    post:
+      tags: [Sign-in]
+      summary: Sign out this session
+      operationId: signOut
+      security:
+        - accessToken: []
+      parameters:
+        - $ref: "#/components/parameters/AuthMode"
+      responses:
+        "200":
+          description: Signed out.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuperTokensStatus"
+
+  /auth/authorisationurl:
+    get:
+      tags: [Sign-in]
+      summary: Start admin Google sign-in
+      description: Admin host only.
+      operationId: adminAuthorisationURL
+      parameters:
+        - name: thirdPartyId
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [staff]
+        - name: redirectURIOnProviderDashboard
+          in: query
+          required: true
+          schema:
+            type: string
+            example: http://localhost:5173/auth/callback/staff
+      responses:
+        "200":
+          description: "`OK` with `urlWithQueryParams` and `pkceCodeVerifier`, or `GENERAL_ERROR` off the admin host."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuperTokensStatus"
+
+  /auth/signinup:
+    post:
+      tags: [Sign-in]
+      summary: Finish admin Google sign-in
+      description: "Admin host only. Needs `rid: thirdparty`. Only the code exchange is accepted; posted tokens are refused."
+      operationId: adminSignIn
+      parameters:
+        - $ref: "#/components/parameters/AuthMode"
+        - name: rid
+          in: header
+          required: true
+          schema:
+            type: string
+            enum: [thirdparty]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [thirdPartyId, redirectURIInfo]
+              properties:
+                thirdPartyId:
+                  type: string
+                  enum: [staff]
+                redirectURIInfo:
+                  type: object
+                  required: [redirectURIOnProviderDashboard, redirectURIQueryParams]
+                  properties:
+                    redirectURIOnProviderDashboard:
+                      type: string
+                    redirectURIQueryParams:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    pkceCodeVerifier:
+                      type: string
+      responses:
+        "200":
+          description: "`OK` with session headers, or `GENERAL_ERROR` when refused."
+          headers:
+            st-access-token:
+              $ref: "#/components/headers/AccessToken"
+            st-refresh-token:
+              $ref: "#/components/headers/RefreshToken"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuperTokensStatus"
+
+  /api/v1/me:
+    get:
+      tags: [Account]
+      summary: The signed-in user
+      operationId: getMe
+      security:
+        - accessToken: []
+      responses:
+        "200":
+          description: The signed-in user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [Account]
+      summary: Delete my account
+      description: Revokes every session, deletes every linked SuperTokens user, then our user, identities and roles.
+      operationId: deleteMe
+      security:
+        - accessToken: []
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/me/identities:
+    get:
+      tags: [Account]
+      summary: My sign-in methods
+      operationId: listIdentities
+      security:
+        - accessToken: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Identities"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Account]
+      summary: Send a code to a new email or phone
+      description: Send exactly one of `email` or `phone_number`. Uses the sign-in rate limits. Staff accounts get 403.
+      operationId: startIdentity
+      security:
+        - accessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                phone_number:
+                  type: string
+            examples:
+              email:
+                value: { email: "ada@example.com" }
+              phone:
+                value: { phone_number: "08031234567" }
+      responses:
+        "201":
+          description: Code sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [device_id, pre_auth_session_id]
+                properties:
+                  device_id:
+                    type: string
+                  pre_auth_session_id:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Already on this account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "429":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/me/identities/verify:
+    post:
+      tags: [Account]
+      summary: Check the code and add the email or phone
+      operationId: verifyIdentity
+      security:
+        - accessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id, pre_auth_session_id, code]
+              properties:
+                device_id:
+                  type: string
+                pre_auth_session_id:
+                  type: string
+                code:
+                  type: string
+                  example: "123456"
+      responses:
+        "201":
+          $ref: "#/components/responses/Identities"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: Belongs to another account. The message names no one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Wrong or expired code, or the flow must restart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/me/identities/{id}:
+    delete:
+      tags: [Account]
+      summary: Remove a sign-in method
+      description: Revokes its sessions and deletes its SuperTokens user. The last method can't be removed.
+      operationId: removeIdentity
+      security:
+        - accessToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "204":
+          description: Removed.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The last sign-in method.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/admin/invites:
+    get:
+      tags: [Admin]
+      summary: List admin invites
+      operationId: listInvites
+      security:
+        - accessToken: []
+      responses:
+        "200":
+          description: The newest 200 invites.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invites]
+                properties:
+                  invites:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Invite"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Admin]
+      summary: Invite a staff email
+      operationId: createInvite
+      security:
+        - accessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "201":
+          description: Invited.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invite"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: That email already has an open invite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/Invalid"
+
+  /api/v1/admin/invites/{id}/revoke:
+    post:
+      tags: [Admin]
+      summary: Revoke an invite
+      description: If it was accepted, removes that admin's role and signs them out.
+      operationId: revokeInvite
+      security:
+        - accessToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "204":
+          description: Revoked.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Your own invite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/admin/users/{id}:
+    delete:
+      tags: [Admin]
+      summary: Delete a user
+      description: Same as the user deleting themselves, plus a `user.deleted` audit row.
+      operationId: deleteUser
+      security:
+        - accessToken: []
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Yourself.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/admin/users/{id}/suspend:
+    post:
+      tags: [Admin]
+      summary: Suspend a user and sign them out
+      operationId: suspendUser
+      security:
+        - accessToken: []
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "204":
+          description: Suspended.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Yourself.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/admin/users/{id}/reactivate:
+    post:
+      tags: [Admin]
+      summary: Reactivate a user
+      operationId: reactivateUser
+      security:
+        - accessToken: []
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "204":
+          description: Reactivated.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Yourself.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  securitySchemes:
+    accessToken:
+      type: http
+      scheme: bearer
+      description: The `st-access-token` response header from sign-in or refresh.
+    refreshToken:
+      type: http
+      scheme: bearer
+      description: The `st-refresh-token` response header. Only for `POST /auth/session/refresh`.
+
+  parameters:
+    AuthMode:
+      name: st-auth-mode
+      in: header
+      description: "`header` returns tokens in response headers instead of cookies."
+      schema:
+        type: string
+        enum: [header, cookie]
+        default: header
+    UserID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    AccessToken:
+      description: "Send as `Authorization: Bearer <token>`. Lasts 15 minutes."
+      schema:
+        type: string
+    RefreshToken:
+      description: "Send to `POST /auth/session/refresh` as `Authorization: Bearer <token>`."
+      schema:
+        type: string
+    FrontToken:
+      description: Base64 JSON with the user ID, expiry and access token payload, for clients to read.
+      schema:
+        type: string
+
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Safe to show to the user.
+        request_id:
+          type: string
+
+    SuperTokensStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+      additionalProperties: true
+
+    Device:
+      type: object
+      required: [deviceId, preAuthSessionId]
+      properties:
+        deviceId:
+          type: string
+        preAuthSessionId:
+          type: string
+
+    Role:
+      type: string
+      enum: [customer, provider, admin]
+
+    Me:
+      type: object
+      required: [user_id, roles, sign_in_method]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+        sign_in_method:
+          type: string
+          enum: [phone_otp, email_otp, oidc]
+
+    Identity:
+      type: object
+      required: [id, kind, value, verified_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum: [phone, email, oidc]
+        value:
+          type: string
+          description: The phone (E.164) or email; the staff email for `oidc`.
+        verified_at:
+          type: string
+          format: date-time
+
+    Invite:
+      type: object
+      required: [id, email, invited_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        invited_by:
+          type: string
+          format: uuid
+        invited_at:
+          type: string
+          format: date-time
+        accepted_by:
+          type: string
+          format: uuid
+        accepted_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+
+  responses:
+    Status:
+      description: OK.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status:
+                type: string
+                enum: [ok]
+    Error:
+      description: Error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Invalid:
+      description: The request is well-formed but a value is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: No valid session, or the account is suspended, deleted or signed in with a removed method.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: The session lacks the role or permission, or is too old for admin routes.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Not found, or an admin route off the admin host.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Identities:
+      description: The user's sign-in methods.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [identities]
+            properties:
+              identities:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Identity"

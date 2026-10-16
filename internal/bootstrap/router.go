@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/coniungo-repo/golang-server/api"
+	"github.com/coniungo-repo/golang-server/internal/docs"
 	"github.com/coniungo-repo/golang-server/internal/platform/middleware"
 	"github.com/coniungo-repo/golang-server/internal/platform/request"
 	"github.com/coniungo-repo/golang-server/internal/platform/requestid"
@@ -25,6 +27,9 @@ var (
 func newRouter(deps *dependencies) (http.Handler, error) {
 	mux := http.NewServeMux()
 	deps.Health.Register(mux)
+	if deps.Config.Docs.Enabled {
+		docs.Register(mux, api.OpenAPI)
+	}
 	registerAPI(route.Prefix(mux, apiPrefix), deps)
 
 	handler := fallback(mux)
