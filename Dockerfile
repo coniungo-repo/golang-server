@@ -10,13 +10,14 @@ COPY cmd ./cmd
 COPY internal ./internal
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/...
 
 FROM gcr.io/distroless/static-debian12:nonroot
 ARG VERSION=dev
 ENV APP_ENV=production \
     APP_VERSION=${VERSION}
 COPY --from=build /out/api /api
+COPY --from=build /out/admin /admin
 USER nonroot:nonroot
 EXPOSE 8080
 ENTRYPOINT ["/api"]

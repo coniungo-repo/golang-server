@@ -13,6 +13,7 @@ import (
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
+	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -26,6 +27,7 @@ type dependencies struct {
 	Email   email.Sender
 	SMS     sms.Sender
 	Limiter *auth.Limiter
+	Users   *users.Service
 	Auth    *auth.Service
 }
 
@@ -50,9 +52,13 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 
 	clk := clock.New()
 	limiter := auth.NewLimiter(pool, cfg.Security.FingerprintSecret.Reveal(), clk, cfg.Auth.RateLimits.Retention())
+	userService := users.New(pool, clk, cfg.Admin.EmailDomain)
 
 	authService, err := auth.New(auth.Deps{
 		Config:         cfg.Auth,
+		Admin:          cfg.Admin,
+		Clock:          clk,
+		Users:          userService,
 		ClientIPHeader: cfg.Server.ClientIPHeader,
 		Log:            log,
 		Phones:         phones,
@@ -75,6 +81,7 @@ func newDependencies(ctx context.Context, cfg config.Config, log *slog.Logger) (
 		Email:   emailSender,
 		SMS:     smsSender,
 		Limiter: limiter,
+		Users:   userService,
 		Auth:    authService,
 	}, nil
 }

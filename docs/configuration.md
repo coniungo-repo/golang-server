@@ -49,7 +49,7 @@ All configuration comes from environment variables. The server validates everyth
 | --- | --- | --- |
 | `SUPERTOKENS_CONNECTION_URI` | `http://localhost:3567` outside production | SuperTokens core. Separate several with `;`. Plain http is allowed for a private network |
 | `SUPERTOKENS_API_KEY` | empty | At least 20 characters, must match the core's `API_KEYS`. Required in production |
-| `SUPERTOKENS_APP_NAME` | `GetGbam` | Shown in emails and SMS |
+| `SUPERTOKENS_APP_NAME` | required | The brand shown in emails and SMS |
 | `SUPERTOKENS_API_DOMAIN` | `http://localhost:$PORT` outside production | Public origin of this API. https in production |
 | `SUPERTOKENS_API_BASE_PATH` | `/auth` | Where the auth routes are mounted |
 | `SUPERTOKENS_WEBSITE_DOMAINS` | local apps outside production | Comma-separated frontend origins. Each must also be in `CORS_ALLOWED_ORIGINS`. https in production |
@@ -59,6 +59,20 @@ All configuration comes from environment variables. The server validates everyth
 | `AUTH_RATE_LIMIT_CLIENT_IP` | `30/1h,100/24h` | Code sends per client IP, same format |
 
 Local Docker Compose also reads `SUPERTOKENS_DB_USER`, `SUPERTOKENS_DB_PASSWORD` and `SUPERTOKENS_DB_NAME` to create the core's database. The API never uses them.
+
+## Admin sign-in
+
+Leave `OIDC_ISSUER` empty to disable admin sign-in.
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `OIDC_ISSUER` | empty | `https://accounts.google.com` for Google Workspace. https only, except loopback outside production |
+| `OIDC_CLIENT_ID` | empty | OAuth client ID |
+| `OIDC_CLIENT_SECRET` | empty | OAuth client secret |
+| `OIDC_HOSTED_DOMAIN` | empty | Google Workspace domain; required in the `hd` claim. Must equal `ADMIN_EMAIL_DOMAIN` |
+| `ADMIN_EMAIL_DOMAIN` | empty | Staff email domain, e.g. `coniungolabs.com`. Invites must use it |
+| `ADMIN_API_HOST` | empty | Host that serves admin routes and Google sign-in. Required in production |
+| `ADMIN_SESSION_MAX_AGE` | `12h` | How long after Google sign-in admin routes keep working. At most 168h |
 
 ## Delivery
 

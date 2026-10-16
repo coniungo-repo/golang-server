@@ -11,10 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coniungo-repo/golang-server/internal/platform/clock"
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/email"
 	"github.com/coniungo-repo/golang-server/internal/platform/phone"
 	"github.com/coniungo-repo/golang-server/internal/platform/sms"
+	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/supertokens/supertokens-golang/ingredients/emaildelivery"
 	"github.com/supertokens/supertokens-golang/ingredients/smsdelivery"
 )
@@ -179,6 +181,8 @@ func TestNewRequiresRateLimits(t *testing.T) {
 	s, _ := testService(t)
 	d := s.deps
 	d.Limiter = &Limiter{}
+	d.Clock = clock.New()
+	d.Users = users.New(nil, d.Clock, "")
 	if _, err := New(d); err == nil || !strings.Contains(err.Error(), "rate limits") {
 		t.Fatalf("want rate limit error, got %v", err)
 	}

@@ -80,7 +80,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 		Auth: Auth{
 			ConnectionURI:   r.string("SUPERTOKENS_CONNECTION_URI", localDefault(local, "http://localhost:3567")),
 			APIKey:          r.secret("SUPERTOKENS_API_KEY"),
-			AppName:         r.string("SUPERTOKENS_APP_NAME", "GetGbam"),
+			AppName:         r.string("SUPERTOKENS_APP_NAME", ""),
 			APIDomain:       r.string("SUPERTOKENS_API_DOMAIN", localDefault(local, fmt.Sprintf("http://localhost:%d", port))),
 			APIBasePath:     r.path("SUPERTOKENS_API_BASE_PATH", "/auth"),
 			WebsiteDomains:  r.list("SUPERTOKENS_WEBSITE_DOMAINS", localList(local, localWebsiteDomains...)),
@@ -89,6 +89,15 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 				Destination: r.rateWindows("AUTH_RATE_LIMIT_DESTINATION", defaultDestinationLimits),
 				ClientIP:    r.rateWindows("AUTH_RATE_LIMIT_CLIENT_IP", defaultClientIPLimits),
 			},
+		},
+		Admin: Admin{
+			Issuer:        r.string("OIDC_ISSUER", ""),
+			ClientID:      r.string("OIDC_CLIENT_ID", ""),
+			ClientSecret:  r.secret("OIDC_CLIENT_SECRET"),
+			HostedDomain:  r.string("OIDC_HOSTED_DOMAIN", ""),
+			EmailDomain:   strings.ToLower(r.string("ADMIN_EMAIL_DOMAIN", "")),
+			APIHost:       strings.ToLower(r.string("ADMIN_API_HOST", "")),
+			SessionMaxAge: r.duration("ADMIN_SESSION_MAX_AGE", 12*time.Hour),
 		},
 		Delivery: Delivery{
 			EmailProvider: r.string("EMAIL_PROVIDER", ProviderLog),
@@ -141,6 +150,7 @@ func validate(r *reader, c Config) {
 	checkAuth(r, c.Auth, c.CORS.AllowedOrigins, prod)
 	checkFingerprintSecret(r, c.Security.FingerprintSecret, prod)
 	checkDelivery(r, c.Delivery, prod)
+	checkAdmin(r, c.Admin, prod)
 
 	if prod {
 		if c.Database.MaxConns < minProductionConns {
@@ -186,6 +196,7 @@ func checkHTTPS(r *reader, key, origin string) {
 }
 
 func checkAuth(r *reader, a Auth, corsOrigins []string, prod bool) {
+	r.require("SUPERTOKENS_APP_NAME", a.AppName != "")
 	r.require("SUPERTOKENS_CONNECTION_URI", a.ConnectionURI != "")
 	if a.ConnectionURI != "" {
 		for uri := range strings.SplitSeq(a.ConnectionURI, ";") {
@@ -225,6 +236,47 @@ func checkAuth(r *reader, a Auth, corsOrigins []string, prod bool) {
 	}
 }
 
+const maxAdminSessionAge = 7 * 24 * time.Hour
+
+func checkAdmin(r *reader, a Admin, prod bool) {
+	if !a.Enabled() {
+		for key, v := range map[string]string{"OIDC_CLIENT_ID": a.ClientID, "ADMIN_EMAIL_DOMAIN": a.EmailDomain, "OIDC_HOSTED_DOMAIN": a.HostedDomain, "ADMIN_API_HOST": a.APIHost} {
+			if v != "" {
+				r.fail(key, "is set but OIDC_ISSUER is empty, so admin sign-in is disabled")
+			}
+		}
+		return
+	}
+	u, err := url.Parse(a.Issuer)
+	if err != nil || u.Host == "" || u.Path != "" && u.Path != "/" || u.RawQuery != "" {
+		r.fail("OIDC_ISSUER", "%q must be the issuer URL, e.g. https://accounts.google.com", a.Issuer)
+	} else if u.Scheme != "https" && (prod || !isLoopback(u.Hostname())) {
+		r.fail("OIDC_ISSUER", "must use https (http is allowed only for localhost outside production)")
+	}
+	r.require("OIDC_CLIENT_ID", a.ClientID != "")
+	r.require("OIDC_CLIENT_SECRET", a.ClientSecret.IsSet())
+	r.require("ADMIN_EMAIL_DOMAIN", a.EmailDomain != "")
+	if a.EmailDomain != "" && (strings.ContainsAny(a.EmailDomain, "@/ ") || !strings.Contains(a.EmailDomain, ".")) {
+		r.fail("ADMIN_EMAIL_DOMAIN", "%q must be a bare domain like coniungolabs.com", a.EmailDomain)
+	}
+	if a.HostedDomain != "" && a.HostedDomain != a.EmailDomain {
+		r.fail("OIDC_HOSTED_DOMAIN", "must equal ADMIN_EMAIL_DOMAIN")
+	}
+	if a.SessionMaxAge > maxAdminSessionAge {
+		r.fail("ADMIN_SESSION_MAX_AGE", "must be at most %s", maxAdminSessionAge)
+	}
+	if prod {
+		r.require("ADMIN_API_HOST", a.APIHost != "")
+	}
+	if a.APIHost != "" && (strings.ContainsAny(a.APIHost, "/@ ") || strings.Contains(a.APIHost, "://")) {
+		r.fail("ADMIN_API_HOST", "%q must be a bare host like admin-api.example.com", a.APIHost)
+	}
+}
+
+func isLoopback(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
 var (
 	emailProviders = []string{ProviderLog}
 	smsProviders   = []string{ProviderLog}
@@ -235,7 +287,7 @@ func checkDelivery(r *reader, d Delivery, prod bool) {
 	r.oneOf("SMS_PROVIDER", d.SMSProvider, smsProviders...)
 	if d.EmailFrom != "" {
 		if _, err := mail.ParseAddress(d.EmailFrom); err != nil {
-			r.fail("EMAIL_FROM", "%q is not a valid address, e.g. GetGbam <hello@getgbam.com>", d.EmailFrom)
+			r.fail("EMAIL_FROM", "%q is not a valid address, e.g. Brand <hello@example.com>", d.EmailFrom)
 		}
 	}
 	if prod {

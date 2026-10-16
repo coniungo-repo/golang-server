@@ -58,6 +58,7 @@ store(n.E164())
 | `platform/httpserver` | Server lifecycle and graceful shutdown |
 | `platform/middleware` | The chain above |
 | `auth` | SuperTokens passwordless and sessions, code delivery, rate limiting. See [auth](auth.md) |
+| `users` | Users, identities, roles, admin invites and the audit log |
 | `store` | sqlc-generated queries |
 | `platform/email` | Email `Sender` interface, address normalisation, log provider |
 | `platform/sms` | SMS `Sender` interface, log provider |

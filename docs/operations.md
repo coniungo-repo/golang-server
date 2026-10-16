@@ -48,11 +48,12 @@ Keys containing `password`, `secret`, `token`, `authorization`, `cookie`, `api_k
 - `HTTP_REQUEST_ID_HEADER` and `HTTP_CLIENT_IP_HEADER` are set only behind a proxy that overwrites them
 - `SUPERTOKENS_API_KEY` is unique per environment and the core is not publicly reachable
 - Real email and SMS providers are configured (`log` is rejected)
+- The core runs with `ACCESS_TOKEN_VALIDITY=900`
+- Admin sign-in uses an Internal OAuth consent screen, enforced 2-step verification, and its own `ADMIN_API_HOST`
 - TLS is terminated by the platform; the app sends HSTS in production
 - CI is green: lint, race tests, govulncheck and image build
 
 ## Not yet in place
 
-- Authorisation (roles and permissions)
 - General API rate limiting; only sign-in code sends are limited today
 - Metrics and tracing
