@@ -8,7 +8,10 @@ import (
 
 const unmatchedRoute = "unmatched"
 
-type routeKey struct{}
+type (
+	routeKey struct{}
+	userKey  struct{}
+)
 
 // Routes records the matched mux pattern so Log can label requests without high-cardinality paths. Unmatched paths under one of prefixes are labelled prefix+"/*".
 func Routes(mux *http.ServeMux, prefixes ...string) Middleware {
@@ -29,6 +32,18 @@ func Routes(mux *http.ServeMux, prefixes ...string) Middleware {
 func withRoute(ctx context.Context) (context.Context, *string) {
 	route := new(string)
 	return context.WithValue(ctx, routeKey{}, route), route
+}
+
+func withUser(ctx context.Context) (context.Context, *string) {
+	user := new(string)
+	return context.WithValue(ctx, userKey{}, user), user
+}
+
+// SetUserID records the signed-in user for this request's log line. It does nothing outside Log.
+func SetUserID(ctx context.Context, id string) {
+	if user, ok := ctx.Value(userKey{}).(*string); ok {
+		*user = id
+	}
 }
 
 func matchPrefix(path string, prefixes []string) (string, bool) {

@@ -14,6 +14,7 @@ func Log(next http.Handler) http.Handler {
 		rec := &recorder{ResponseWriter: w}
 
 		ctx, route := withRoute(r.Context())
+		ctx, user := withUser(ctx)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(rec, r)
@@ -34,12 +35,16 @@ func Log(next http.Handler) http.Handler {
 			level = slog.LevelWarn
 		}
 
-		logger.From(r.Context()).LogAttrs(r.Context(), level, "request finished",
+		attrs := []slog.Attr{
 			slog.String("method", r.Method),
 			slog.String("route", *route),
 			slog.Int("status", status),
 			slog.Int("bytes", rec.bytes),
 			slog.Duration("duration", time.Since(start)),
-		)
+		}
+		if *user != "" {
+			attrs = append(attrs, slog.String("user_id", *user))
+		}
+		logger.From(r.Context()).LogAttrs(r.Context(), level, "request finished", attrs...)
 	})
 }

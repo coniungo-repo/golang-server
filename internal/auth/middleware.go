@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/metrics"
+	"github.com/coniungo-repo/golang-server/internal/platform/middleware"
 	"github.com/coniungo-repo/golang-server/internal/platform/respond"
 	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/supertokens/supertokens-golang/recipe/session"
@@ -41,12 +42,19 @@ func (p Principal) Can(perm Permission) bool {
 	return false
 }
 
-// RequireSession rejects requests without a valid session, from a suspended or deleted user, from a sign-in method since removed, or over the per-user rate limit, and puts the Principal on the request context. Access tokens are verified without a core call, so this database check is what makes suspension immediate.
+// RequireSession rejects requests without a valid session, over the per-user rate limit, from a suspended or deleted user, or from a sign-in method since removed, and puts the Principal on the request context. The rate limit runs first so refused requests cost no query. Access tokens are verified without a core call, so the database check is what makes suspension immediate.
 func (s *Service) RequireSession(next http.Handler) http.Handler {
 	return session.VerifySession(nil, func(w http.ResponseWriter, r *http.Request) {
 		p, stUserID, ok := principalFromSession(r.Context())
 		if !ok {
 			respond.Error(w, r, http.StatusUnauthorized, signInAgainMessage)
+			return
+		}
+		middleware.SetUserID(r.Context(), p.UserID)
+		if ok, wait := s.deps.UserLimit.Allow(p.UserID); !ok {
+			s.deps.Log.WarnContext(r.Context(), "rate limited", "limit", metrics.LimitUser, "retry_after", wait)
+			s.deps.Metrics.RateLimited(metrics.LimitUser)
+			respond.TooManyRequests(w, r, wait)
 			return
 		}
 		active, err := s.deps.Users.IsActive(r.Context(), p.UserID, stUserID)
@@ -56,12 +64,6 @@ func (s *Service) RequireSession(next http.Handler) http.Handler {
 		}
 		if !active {
 			respond.Error(w, r, http.StatusUnauthorized, suspendedMessage)
-			return
-		}
-		if ok, wait := s.deps.UserLimit.Allow(p.UserID); !ok {
-			s.deps.Log.WarnContext(r.Context(), "rate limited", "limit", metrics.LimitUser, "retry_after", wait)
-			s.deps.Metrics.RateLimited(metrics.LimitUser)
-			respond.TooManyRequests(w, r, wait)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey{}, p)))

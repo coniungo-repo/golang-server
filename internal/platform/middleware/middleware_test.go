@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -183,4 +184,23 @@ func TestLogUsesRoutePattern(t *testing.T) {
 	if !strings.Contains(out, `route="GET /things/{id}"`) || !strings.Contains(out, "route=unmatched") {
 		t.Fatalf("unexpected log output:\n%s", out)
 	}
+}
+
+func TestLogIncludesSignedInUser(t *testing.T) {
+	var buf bytes.Buffer
+	log := logger.New(&buf, logger.Options{Level: slog.LevelInfo})
+	h := Chain(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/me" {
+			SetUserID(r.Context(), "0b7f6a52-1c1e-4c58-9f3c-2b9d8e2a1f00")
+		}
+	}), Log)
+	for _, path := range []string{"/me", "/public"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		h.ServeHTTP(httptest.NewRecorder(), req.WithContext(logger.Into(req.Context(), log)))
+	}
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 2 || !strings.Contains(lines[0], "user_id=0b7f6a52-1c1e-4c58-9f3c-2b9d8e2a1f00") || strings.Contains(lines[1], "user_id") {
+		t.Fatalf("unexpected log output:\n%s", buf.String())
+	}
+	SetUserID(context.Background(), "ignored")
 }
