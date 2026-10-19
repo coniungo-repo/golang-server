@@ -53,6 +53,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 	r.oneOf("APP_ENV", string(env), string(Development), string(Test), string(Production))
 	local := env != Production
 	port := r.int("PORT", 8080)
+	requestTimeout := r.duration("HTTP_REQUEST_TIMEOUT", 20*time.Second)
 
 	cfg := Config{
 		App: App{
@@ -69,7 +70,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			IdleTimeout:       r.duration("HTTP_IDLE_TIMEOUT", 60*time.Second),
 			ShutdownTimeout:   r.duration("HTTP_SHUTDOWN_TIMEOUT", 15*time.Second),
 			DrainDelay:        r.durationOrZero("HTTP_DRAIN_DELAY", 0),
-			RequestTimeout:    r.duration("HTTP_REQUEST_TIMEOUT", 20*time.Second),
+			RequestTimeout:    requestTimeout,
 			RequestIDHeader:   r.string("HTTP_REQUEST_ID_HEADER", ""),
 			ClientIPHeader:    r.string("HTTP_CLIENT_IP_HEADER", ""),
 			MaxHeaderBytes:    r.int("HTTP_MAX_HEADER_BYTES", 64<<10),
@@ -83,6 +84,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 			ConnectTimeout:    r.duration("DB_CONNECT_TIMEOUT", 5*time.Second),
 			HealthCheckPeriod: r.duration("DB_HEALTH_CHECK_PERIOD", time.Minute),
 			ReadyTimeout:      r.duration("DB_READY_TIMEOUT", 2*time.Second),
+			StatementTimeout:  r.duration("DB_STATEMENT_TIMEOUT", requestTimeout),
 		},
 		Log: Log{
 			Level: r.logLevel("LOG_LEVEL", slog.LevelInfo),
@@ -198,6 +200,9 @@ func validate(r *reader, c Config) {
 	r.require("DATABASE_URL", c.Database.URL.IsSet())
 	if c.Database.URL.IsSet() {
 		checkDatabaseURL(r, "DATABASE_URL", c.Database.URL.Reveal(), prod)
+	}
+	if c.Database.StatementTimeout < time.Millisecond {
+		r.fail("DB_STATEMENT_TIMEOUT", "must be at least 1ms; Postgres counts in milliseconds and treats 0 as no limit")
 	}
 	if c.Database.MinConns > c.Database.MaxConns {
 		r.fail("DB_MIN_CONNS", "must not exceed DB_MAX_CONNS")

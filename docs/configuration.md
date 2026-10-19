@@ -43,6 +43,7 @@ All configuration comes from environment variables. The server validates everyth
 | `DB_CONNECT_TIMEOUT` | `5s` | Opening a connection, and the startup ping |
 | `DB_HEALTH_CHECK_PERIOD` | `1m` | How often the pool checks idle connections |
 | `DB_READY_TIMEOUT` | `2s` | The `/readyz` ping. Shorter than `HTTP_REQUEST_TIMEOUT` |
+| `DB_STATEMENT_TIMEOUT` | `HTTP_REQUEST_TIMEOUT` | Postgres `statement_timeout` and `idle_in_transaction_session_timeout` on every API connection, so a runaway query or abandoned transaction can't hold a connection after the request has given up. At least `1ms`; overrides the same settings in `DATABASE_URL`. Migrations don't use it |
 
 ## Security
 

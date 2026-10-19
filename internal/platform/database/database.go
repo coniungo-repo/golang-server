@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,11 +16,7 @@ func Open(ctx context.Context, cfg config.Database) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("parsing database url: %w", err)
 	}
 
-	poolCfg.MaxConns = cfg.MaxConns
-	poolCfg.MinConns = cfg.MinConns
-	poolCfg.MaxConnIdleTime = cfg.ConnMaxIdle
-	poolCfg.HealthCheckPeriod = cfg.HealthCheckPeriod
-	poolCfg.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
+	configure(poolCfg, cfg)
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
@@ -34,4 +31,17 @@ func Open(ctx context.Context, cfg config.Database) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
 	return pool, nil
+}
+
+// configure applies cfg to the pool. statement_timeout and idle_in_transaction_session_timeout are a server-side cap, so a runaway query or abandoned transaction can't hold a connection after the client has given up.
+func configure(poolCfg *pgxpool.Config, cfg config.Database) {
+	poolCfg.MaxConns = cfg.MaxConns
+	poolCfg.MinConns = cfg.MinConns
+	poolCfg.MaxConnIdleTime = cfg.ConnMaxIdle
+	poolCfg.HealthCheckPeriod = cfg.HealthCheckPeriod
+	poolCfg.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
+
+	ms := strconv.FormatInt(cfg.StatementTimeout.Milliseconds(), 10)
+	poolCfg.ConnConfig.RuntimeParams["statement_timeout"] = ms
+	poolCfg.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = ms
 }
