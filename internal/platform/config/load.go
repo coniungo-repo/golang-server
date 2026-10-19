@@ -188,6 +188,9 @@ func validate(r *reader, c Config) {
 	if c.Auth.CoreTimeout >= c.Server.RequestTimeout {
 		r.fail("SUPERTOKENS_TIMEOUT", "must be shorter than HTTP_REQUEST_TIMEOUT, so a slow core still gets an error response")
 	}
+	if h := c.Server.ClientIPHeader; strings.EqualFold(h, "X-Forwarded-For") || strings.EqualFold(h, "Forwarded") {
+		r.fail("HTTP_CLIENT_IP_HEADER", "%s carries a list whose first entry the client chooses; use a single-address header your proxy overwrites, e.g. Fly-Client-IP", h)
+	}
 	if c.Server.DrainDelay >= c.Server.ShutdownTimeout {
 		r.fail("HTTP_DRAIN_DELAY", "must be shorter than HTTP_SHUTDOWN_TIMEOUT")
 	}

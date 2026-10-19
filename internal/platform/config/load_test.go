@@ -104,6 +104,8 @@ func TestLoadRejects(t *testing.T) {
 		{"pool overflow", map[string]string{"DB_MAX_CONNS": "99999999999"}, "DB_MAX_CONNS"},
 		{"short secret", map[string]string{"FINGERPRINT_SECRET": "short"}, "FINGERPRINT_SECRET"},
 		{"request timeout too long", map[string]string{"HTTP_REQUEST_TIMEOUT": "40s"}, "HTTP_REQUEST_TIMEOUT"},
+		{"forwarded-for client ip header", map[string]string{"HTTP_CLIENT_IP_HEADER": "x-forwarded-for"}, "HTTP_CLIENT_IP_HEADER"},
+		{"forwarded client ip header", map[string]string{"HTTP_CLIENT_IP_HEADER": "Forwarded"}, "HTTP_CLIENT_IP_HEADER"},
 		{"drain too long", map[string]string{"HTTP_DRAIN_DELAY": "20s"}, "HTTP_DRAIN_DELAY"},
 		{"prod sslmode require", map[string]string{"APP_ENV": "production", "DATABASE_URL": strings.Replace(prodURL, "verify-full", "require", 1)}, "verify-full"},
 		{"prod keyword dsn without tls", map[string]string{"APP_ENV": "production", "DATABASE_URL": "host=db.example.com user=u dbname=db sslmode=disable"}, "verify-full"},

@@ -25,7 +25,7 @@ All configuration comes from environment variables. The server validates everyth
 | `HTTP_REQUEST_TIMEOUT` | `20s` | Must be shorter than the write timeout |
 | `HTTP_SHUTDOWN_TIMEOUT` | `15s` | Total time allowed for shutdown |
 | `HTTP_DRAIN_DELAY` | `0s` | Time `/readyz` reports 503 before connections close. Set to about 5s behind a load balancer |
-| `HTTP_CLIENT_IP_HEADER` | empty | Proxy header carrying the client IP, e.g. `Fly-Client-IP`, used for rate limiting. Only set behind a proxy that overwrites it |
+| `HTTP_CLIENT_IP_HEADER` | empty | Proxy header carrying the client IP, e.g. `Fly-Client-IP`, used for rate limiting and the bot check. Only set behind a proxy that overwrites it. It must hold one address: a value with a comma, or a header sent twice, falls back to the socket address, and `X-Forwarded-For` and `Forwarded` are refused because the client chooses their first entry |
 | `METRICS_ADDR` | empty (off) | Where to serve Prometheus metrics, e.g. `:9091`. A separate port from `PORT`; never expose it publicly |
 | `HTTP_MAX_HEADER_BYTES` | `65536` | Largest request header block, 4096 to 1048576 |
 | `HTTP_REQUEST_ID_HEADER` | empty | Reuse a proxy's request ID, e.g. `Fly-Request-Id`. Only set this when that proxy strips the header from clients |
