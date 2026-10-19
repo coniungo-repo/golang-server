@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/coniungo-repo/golang-server/internal/store"
@@ -106,7 +107,7 @@ func (s *Service) RemoveIdentity(ctx context.Context, userID string, identityID 
 	})
 }
 
-// DeleteUser deletes userID and, by cascade, their identities and roles. release runs inside the transaction, before the delete, with every SuperTokens user ID they sign in with; if it fails nothing is deleted. A non-nil by records an admin deletion in the audit log.
+// DeleteUser deletes userID and, by cascade, their identities and roles, and revokes any admin invite they accepted so it can't be used again. release runs inside the transaction, before the delete, with every SuperTokens user ID they sign in with; if it fails nothing is deleted. A non-nil by records an admin deletion in the audit log.
 func (s *Service) DeleteUser(ctx context.Context, userID string, by *string, release func(supertokensUserIDs []string) error) error {
 	if by != nil && *by == userID {
 		return ErrSelfAction
@@ -126,6 +127,15 @@ func (s *Service) DeleteUser(ctx context.Context, userID string, by *string, rel
 		}
 		if err := release(ids); err != nil {
 			return err
+		}
+		invites, err := q.RevokeAdminInvitesAcceptedBy(ctx, &userID)
+		if err != nil {
+			return err
+		}
+		for _, id := range invites {
+			if err := audit(ctx, q, by, "admin.invite.revoked", fmt.Sprint(id)); err != nil {
+				return err
+			}
 		}
 		if by != nil {
 			if err := audit(ctx, q, by, "user.deleted", userID); err != nil {

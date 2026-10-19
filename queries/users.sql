@@ -47,9 +47,9 @@ VALUES (@email, @invited_by)
 RETURNING id, email, invited_at;
 
 -- name: GetOpenAdminInviteForUpdate :one
-SELECT id, accepted_by
+SELECT id
 FROM admin_invites
-WHERE email = @email AND revoked_at IS NULL
+WHERE email = @email AND revoked_at IS NULL AND accepted_at IS NULL
 FOR UPDATE;
 
 -- name: AcceptAdminInvite :exec
@@ -59,6 +59,11 @@ UPDATE admin_invites SET accepted_by = @accepted_by, accepted_at = now() WHERE i
 UPDATE admin_invites SET revoked_at = now()
 WHERE id = @id AND revoked_at IS NULL
 RETURNING accepted_by;
+
+-- name: RevokeAdminInvitesAcceptedBy :many
+UPDATE admin_invites SET revoked_at = now()
+WHERE accepted_by = @accepted_by AND revoked_at IS NULL
+RETURNING id;
 
 -- name: ListAdminInvites :many
 SELECT id, email, invited_by, invited_at, accepted_by, accepted_at, revoked_at
