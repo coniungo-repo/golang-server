@@ -52,7 +52,7 @@ All configuration comes from environment variables. The server validates everyth
 | `CORS_MAX_AGE` | `10m` | How long browsers may cache a preflight, at most `24h` |
 | `BOT_CHECK` | `off` | `turnstile` makes sign-in code requests and adding a contact carry a Cloudflare Turnstile token in `X-Turnstile-Token`. Fails closed: if Turnstile can't be reached, no code is sent. Production warns at startup while it is `off` |
 | `TURNSTILE_SECRET_KEY` | empty | The widget's secret key. Required with `turnstile`. Cloudflare's test keys (`1x…`, `2x…`, `3x…`) are refused in production |
-| `BOT_CHECK_TIMEOUT` | `5s` | Limit on each Turnstile check. Shorter than `HTTP_REQUEST_TIMEOUT` |
+| `BOT_CHECK_TIMEOUT` | `5s` | Limit on each Turnstile check, and on the HTTP client even without a request deadline. Shorter than `HTTP_REQUEST_TIMEOUT` |
 | `FINGERPRINT_SECRET` | required | At least 32 characters. Generate with `openssl rand -hex 32`. The example placeholder is rejected in production |
 
 ## Auth (SuperTokens)
@@ -100,7 +100,7 @@ Leave `OIDC_ISSUER` empty to disable admin sign-in.
 | `TERMII_API_KEY` | empty | Required with `termii` |
 | `TERMII_BASE_URL` | empty | Your account's API base URL from the Termii dashboard, https. Required with `termii` |
 | `TERMII_CHANNEL` | `dnd` | `dnd` reaches numbers on Do-Not-Disturb and must be enabled by Termii support; `generic` is for promotions and is refused in production |
-| `DELIVERY_TIMEOUT` | `10s` | Limit on each email or SMS send. Shorter than `HTTP_REQUEST_TIMEOUT` |
+| `DELIVERY_TIMEOUT` | `10s` | Limit on each email or SMS send, and on the provider HTTP clients even without a request deadline. Shorter than `HTTP_REQUEST_TIMEOUT` |
 
 ## Phone numbers
 

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -17,14 +18,18 @@ const (
 
 	TermiiChannelDND     = "dnd"
 	TermiiChannelGeneric = "generic"
+
+	// TermiiDefaultTimeout bounds each API call when TermiiConfig.Timeout is zero, even if the caller's context has no deadline.
+	TermiiDefaultTimeout = 30 * time.Second
 )
 
-// TermiiConfig configures Termii. BaseURL is the account's API base URL from the Termii dashboard. Use the dnd channel for codes: generic does not reach numbers on Do-Not-Disturb.
+// TermiiConfig configures Termii. BaseURL is the account's API base URL from the Termii dashboard. Use the dnd channel for codes: generic does not reach numbers on Do-Not-Disturb. Timeout bounds each HTTP call, defaulting to TermiiDefaultTimeout. Client is for tests and replaces Timeout.
 type TermiiConfig struct {
 	APIKey  string
 	BaseURL string
 	Sender  string
 	Channel string
+	Timeout time.Duration
 	Client  *http.Client
 }
 
@@ -41,8 +46,11 @@ func NewTermii(cfg TermiiConfig) (*Termii, error) {
 	if cfg.Channel != TermiiChannelDND && cfg.Channel != TermiiChannelGeneric {
 		return nil, fmt.Errorf("sms: termii channel must be %q or %q", TermiiChannelDND, TermiiChannelGeneric)
 	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = TermiiDefaultTimeout
+	}
 	if cfg.Client == nil {
-		cfg.Client = &http.Client{}
+		cfg.Client = &http.Client{Timeout: cfg.Timeout}
 	}
 	return &Termii{cfg: cfg, endpoint: strings.TrimSuffix(cfg.BaseURL, "/") + termiiSendPath}, nil
 }

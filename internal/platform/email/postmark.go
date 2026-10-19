@@ -8,19 +8,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 const (
 	PostmarkEndpoint      = "https://api.postmarkapp.com/email"
 	postmarkMaxResponse   = 64 << 10
 	postmarkDefaultStream = "outbound"
+
+	// PostmarkDefaultTimeout bounds each API call when PostmarkConfig.Timeout is zero, even if the caller's context has no deadline.
+	PostmarkDefaultTimeout = 30 * time.Second
 )
 
-// PostmarkConfig configures Postmark. From must be a confirmed sender signature or on a verified domain. Endpoint is for tests.
+// PostmarkConfig configures Postmark. From must be a confirmed sender signature or on a verified domain. Timeout bounds each HTTP call, defaulting to PostmarkDefaultTimeout. Endpoint and Client are for tests; a Client replaces Timeout.
 type PostmarkConfig struct {
 	ServerToken string
 	From        string
 	Stream      string
+	Timeout     time.Duration
 	Endpoint    string
 	Client      *http.Client
 }
@@ -40,8 +45,11 @@ func NewPostmark(cfg PostmarkConfig) (*Postmark, error) {
 	if cfg.Endpoint == "" {
 		cfg.Endpoint = PostmarkEndpoint
 	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = PostmarkDefaultTimeout
+	}
 	if cfg.Client == nil {
-		cfg.Client = &http.Client{}
+		cfg.Client = &http.Client{Timeout: cfg.Timeout}
 	}
 	return &Postmark{cfg: cfg}, nil
 }
