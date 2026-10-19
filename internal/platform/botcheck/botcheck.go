@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -20,6 +21,9 @@ const (
 	maxTokenLen       = 2048
 	maxResponse       = 64 << 10
 	attempts          = 2
+
+	// DefaultTimeout bounds each siteverify call when TurnstileConfig.Timeout is zero, even if the caller's context has no deadline.
+	DefaultTimeout = 30 * time.Second
 )
 
 // ErrFailed means the token was missing, invalid, expired or already used. The client should run the challenge again.
@@ -37,9 +41,10 @@ type Off struct{}
 
 func (Off) Verify(context.Context, string, string) error { return nil }
 
-// TurnstileConfig configures Turnstile. Endpoint and Client are for tests.
+// TurnstileConfig configures Turnstile. Timeout bounds each HTTP call, defaulting to DefaultTimeout. Endpoint and Client are for tests; a Client replaces Timeout.
 type TurnstileConfig struct {
 	Secret   string
+	Timeout  time.Duration
 	Endpoint string
 	Client   *http.Client
 }
@@ -56,8 +61,11 @@ func NewTurnstile(cfg TurnstileConfig) (*Turnstile, error) {
 	if cfg.Endpoint == "" {
 		cfg.Endpoint = TurnstileEndpoint
 	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = DefaultTimeout
+	}
 	if cfg.Client == nil {
-		cfg.Client = &http.Client{}
+		cfg.Client = &http.Client{Timeout: cfg.Timeout}
 	}
 	return &Turnstile{cfg: cfg}, nil
 }

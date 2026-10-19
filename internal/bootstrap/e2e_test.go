@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/coniungo-repo/golang-server/internal/platform/config"
 	"github.com/coniungo-repo/golang-server/internal/platform/logger"
+	"github.com/coniungo-repo/golang-server/internal/users"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/supertokens/supertokens-golang/supertokens"
 )
@@ -506,6 +508,51 @@ func TestAuthEndToEnd(t *testing.T) {
 		}
 		if got := c.userID(again.token); got != secondUserID {
 			t.Fatalf("re-invited admin is user %s, want their original account %s", got, secondUserID)
+		}
+	})
+
+	t.Run("deleting an admin closes their invite, and only a new invite lets them back", func(t *testing.T) {
+		gone, goneSub := randomStaff(), fmt.Sprint(rand.Int64())
+		created := c.do("POST", "/api/v1/admin/invites", adminHost, adminSession.token, map[string]string{"email": gone})
+		if created.status != 201 {
+			t.Fatalf("invite status %d %v", created.status, created.body)
+		}
+		session := c.adminSignIn(adminHost, idp.code(testClientID, goneSub, gone, nil))
+		if session.body["status"] != "OK" {
+			t.Fatalf("admin sign-in: %v", session.body)
+		}
+		uid := c.userID(session.token)
+		if got := c.do("DELETE", "/api/v1/admin/users/"+uid, adminHost, adminSession.token, nil).status; got != 204 {
+			t.Fatalf("delete status %d", got)
+		}
+
+		if err := deps.Users.AdminEligible(context.Background(), idp.URL+"|"+goneSub, gone); !errors.Is(err, users.ErrNotInvited) {
+			t.Fatalf("AdminEligible after delete: %v, want ErrNotInvited", err)
+		}
+		if got := c.adminSignIn(adminHost, idp.code(testClientID, goneSub, gone, nil)); got.token != "" {
+			t.Fatalf("deleted admin signed in again: %v", got.body)
+		}
+		inviteID := int64(created.body["id"].(float64))
+		var revoked bool
+		var audits int
+		err := deps.DB.QueryRow(context.Background(), `
+			SELECT i.revoked_at IS NOT NULL,
+			       (SELECT count(*) FROM admin_audit_log WHERE action = 'admin.invite.revoked' AND target = $2 AND actor_id = $3)
+			FROM admin_invites i WHERE i.id = $1`,
+			inviteID, fmt.Sprint(inviteID), adminMe.body["user_id"]).Scan(&revoked, &audits)
+		if err != nil || !revoked || audits != 1 {
+			t.Fatalf("invite revoked %v, audit rows %d, err %v", revoked, audits, err)
+		}
+
+		if got := c.do("POST", "/api/v1/admin/invites", adminHost, adminSession.token, map[string]string{"email": gone}).status; got != 201 {
+			t.Fatalf("re-invite status %d", got)
+		}
+		again := c.adminSignIn(adminHost, idp.code(testClientID, goneSub, gone, nil))
+		if again.body["status"] != "OK" || again.token == "" {
+			t.Fatalf("re-invited admin could not sign in: %v", again.body)
+		}
+		if got := c.userID(again.token); got == uid {
+			t.Fatalf("re-invited admin reused deleted user %s", uid)
 		}
 	})
 

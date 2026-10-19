@@ -352,16 +352,17 @@ func (s *Service) acceptInvite(ctx context.Context, q *store.Queries, inviteID i
 	return audit(ctx, q, &userID, "admin.invite.accepted", addr)
 }
 
+// openInvite locks and returns the unrevoked, unaccepted invite for addr. An accepted invite stays consumed even after its user is deleted and accepted_by is nulled.
 func (s *Service) openInvite(ctx context.Context, q *store.Queries, addr string) (int64, error) {
 	a, err := s.NormalizeAdminEmail(addr)
 	if err != nil {
 		return 0, ErrNotInvited
 	}
-	inv, err := q.GetOpenAdminInviteForUpdate(ctx, a)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && inv.AcceptedBy != nil) {
+	id, err := q.GetOpenAdminInviteForUpdate(ctx, a)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, ErrNotInvited
 	}
-	return inv.ID, err
+	return id, err
 }
 
 func roles(ctx context.Context, q *store.Queries, userID string) ([]Role, error) {

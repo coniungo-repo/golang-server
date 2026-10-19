@@ -42,7 +42,7 @@ func (s *Service) thirdPartyConfig() *tpmodels.TypeInput {
 					Clients: []tpmodels.ProviderClientConfig{{
 						ClientID:     a.ClientID,
 						ClientSecret: a.ClientSecret.Reveal(),
-						Scope:        []string{"openid", "email", "profile"},
+						Scope:        []string{"openid", "email"},
 						ForcePKCE:    &pkce,
 					}},
 				},

@@ -208,22 +208,17 @@ func (q *Queries) GetIdentityForUser(ctx context.Context, arg GetIdentityForUser
 }
 
 const getOpenAdminInviteForUpdate = `-- name: GetOpenAdminInviteForUpdate :one
-SELECT id, accepted_by
+SELECT id
 FROM admin_invites
-WHERE email = $1 AND revoked_at IS NULL
+WHERE email = $1 AND revoked_at IS NULL AND accepted_at IS NULL
 FOR UPDATE
 `
 
-type GetOpenAdminInviteForUpdateRow struct {
-	ID         int64   `json:"id"`
-	AcceptedBy *string `json:"accepted_by"`
-}
-
-func (q *Queries) GetOpenAdminInviteForUpdate(ctx context.Context, email string) (GetOpenAdminInviteForUpdateRow, error) {
+func (q *Queries) GetOpenAdminInviteForUpdate(ctx context.Context, email string) (int64, error) {
 	row := q.db.QueryRow(ctx, getOpenAdminInviteForUpdate, email)
-	var i GetOpenAdminInviteForUpdateRow
-	err := row.Scan(&i.ID, &i.AcceptedBy)
-	return i, err
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getSessionUserStatus = `-- name: GetSessionUserStatus :one
@@ -435,6 +430,32 @@ func (q *Queries) RevokeAdminInvite(ctx context.Context, id int64) (*string, err
 	var accepted_by *string
 	err := row.Scan(&accepted_by)
 	return accepted_by, err
+}
+
+const revokeAdminInvitesAcceptedBy = `-- name: RevokeAdminInvitesAcceptedBy :many
+UPDATE admin_invites SET revoked_at = now()
+WHERE accepted_by = $1 AND revoked_at IS NULL
+RETURNING id
+`
+
+func (q *Queries) RevokeAdminInvitesAcceptedBy(ctx context.Context, acceptedBy *string) ([]int64, error) {
+	rows, err := q.db.Query(ctx, revokeAdminInvitesAcceptedBy, acceptedBy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setUserStatus = `-- name: SetUserStatus :execrows

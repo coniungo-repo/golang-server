@@ -90,6 +90,20 @@ func TestTermiiRespectsContext(t *testing.T) {
 	}
 }
 
+func TestTermiiTimesOutWithoutDeadline(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	tm, _ := NewTermii(TermiiConfig{APIKey: "k", BaseURL: srv.URL, Sender: "GetGbam", Channel: TermiiChannelDND, Timeout: 50 * time.Millisecond})
+	if err := tm.Send(context.Background(), codeText); err == nil {
+		t.Fatal("want a timeout error")
+	}
+	if tm, _ := NewTermii(TermiiConfig{APIKey: "k", BaseURL: "https://x.test", Sender: "GetGbam", Channel: TermiiChannelDND}); tm.cfg.Client.Timeout != TermiiDefaultTimeout {
+		t.Fatalf("default client timeout %s, want %s", tm.cfg.Client.Timeout, TermiiDefaultTimeout)
+	}
+}
+
 func TestNewTermiiRequiresSettings(t *testing.T) {
 	for name, cfg := range map[string]TermiiConfig{
 		"no key":      {BaseURL: "https://x.test", Sender: "GetGbam", Channel: TermiiChannelDND},

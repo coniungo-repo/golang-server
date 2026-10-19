@@ -78,6 +78,7 @@ type Database struct {
 	ConnectTimeout    time.Duration
 	HealthCheckPeriod time.Duration
 	ReadyTimeout      time.Duration
+	StatementTimeout  time.Duration
 }
 
 type Auth struct {

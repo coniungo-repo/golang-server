@@ -7,12 +7,11 @@ import (
 	"strings"
 )
 
-// ClientIP returns the caller's IP. trustedHeader names a header set by a proxy you control (e.g. Fly-Client-IP); leave it empty to use the socket address.
+// ClientIP returns the caller's IP. trustedHeader names a single-address header that a proxy you control overwrites (e.g. Fly-Client-IP); leave it empty to use the socket address. A header holding a list, or sent more than once, is ignored: in X-Forwarded-For the first entry is whatever the client sent.
 func ClientIP(r *http.Request, trustedHeader string) string {
 	if trustedHeader != "" {
-		v := strings.TrimSpace(r.Header.Get(trustedHeader))
-		if first, _, _ := strings.Cut(v, ","); first != "" {
-			if addr, err := netip.ParseAddr(strings.TrimSpace(first)); err == nil {
+		if vs := r.Header.Values(trustedHeader); len(vs) == 1 && !strings.Contains(vs[0], ",") {
+			if addr, err := netip.ParseAddr(strings.TrimSpace(vs[0])); err == nil {
 				return addr.Unmap().String()
 			}
 		}

@@ -89,6 +89,20 @@ func TestPostmarkRespectsContext(t *testing.T) {
 	}
 }
 
+func TestPostmarkTimesOutWithoutDeadline(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	p, _ := NewPostmark(PostmarkConfig{ServerToken: "t", From: "a@b.co", Endpoint: srv.URL, Timeout: 50 * time.Millisecond})
+	if err := p.Send(context.Background(), codeMessage); err == nil {
+		t.Fatal("want a timeout error")
+	}
+	if p, _ := NewPostmark(PostmarkConfig{ServerToken: "t", From: "a@b.co"}); p.cfg.Client.Timeout != PostmarkDefaultTimeout {
+		t.Fatalf("default client timeout %s, want %s", p.cfg.Client.Timeout, PostmarkDefaultTimeout)
+	}
+}
+
 func TestNewPostmarkRequiresSettings(t *testing.T) {
 	if _, err := NewPostmark(PostmarkConfig{From: "a@b.co"}); err == nil {
 		t.Fatal("want an error without a token")

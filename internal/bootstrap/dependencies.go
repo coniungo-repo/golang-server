@@ -137,6 +137,7 @@ func newEmailSender(cfg config.Delivery, log *slog.Logger) (email.Sender, error)
 			ServerToken: cfg.PostmarkServerToken.Reveal(),
 			From:        cfg.EmailFrom,
 			Stream:      cfg.PostmarkStream,
+			Timeout:     cfg.Timeout,
 		})
 	default:
 		return nil, fmt.Errorf("unknown email provider %q", cfg.EmailProvider)
@@ -153,6 +154,7 @@ func newSMSSender(cfg config.Delivery, log *slog.Logger) (sms.Sender, error) {
 			BaseURL: cfg.TermiiBaseURL,
 			Sender:  cfg.SMSSender,
 			Channel: cfg.TermiiChannel,
+			Timeout: cfg.Timeout,
 		})
 	default:
 		return nil, fmt.Errorf("unknown sms provider %q", cfg.SMSProvider)
@@ -167,7 +169,7 @@ func (d *dependencies) close() {
 func newBotCheck(cfg config.Security) (botcheck.Verifier, error) {
 	switch cfg.BotCheck {
 	case config.BotCheckTurnstile:
-		return botcheck.NewTurnstile(botcheck.TurnstileConfig{Secret: cfg.TurnstileSecret.Reveal()})
+		return botcheck.NewTurnstile(botcheck.TurnstileConfig{Secret: cfg.TurnstileSecret.Reveal(), Timeout: cfg.BotCheckTimeout})
 	case config.BotCheckOff:
 		return botcheck.Off{}, nil
 	default:

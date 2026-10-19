@@ -25,7 +25,7 @@ All configuration comes from environment variables. The server validates everyth
 | `HTTP_REQUEST_TIMEOUT` | `20s` | Must be shorter than the write timeout |
 | `HTTP_SHUTDOWN_TIMEOUT` | `15s` | Total time allowed for shutdown |
 | `HTTP_DRAIN_DELAY` | `0s` | Time `/readyz` reports 503 before connections close. Set to about 5s behind a load balancer |
-| `HTTP_CLIENT_IP_HEADER` | empty | Proxy header carrying the client IP, e.g. `Fly-Client-IP`, used for rate limiting. Only set behind a proxy that overwrites it |
+| `HTTP_CLIENT_IP_HEADER` | empty | Proxy header carrying the client IP, e.g. `Fly-Client-IP`, used for rate limiting and the bot check. Only set behind a proxy that overwrites it. It must hold one address: a value with a comma, or a header sent twice, falls back to the socket address, and `X-Forwarded-For` and `Forwarded` are refused because the client chooses their first entry |
 | `METRICS_ADDR` | empty (off) | Where to serve Prometheus metrics, e.g. `:9091`. A separate port from `PORT`; never expose it publicly |
 | `HTTP_MAX_HEADER_BYTES` | `65536` | Largest request header block, 4096 to 1048576 |
 | `HTTP_REQUEST_ID_HEADER` | empty | Reuse a proxy's request ID, e.g. `Fly-Request-Id`. Only set this when that proxy strips the header from clients |
@@ -43,6 +43,7 @@ All configuration comes from environment variables. The server validates everyth
 | `DB_CONNECT_TIMEOUT` | `5s` | Opening a connection, and the startup ping |
 | `DB_HEALTH_CHECK_PERIOD` | `1m` | How often the pool checks idle connections |
 | `DB_READY_TIMEOUT` | `2s` | The `/readyz` ping. Shorter than `HTTP_REQUEST_TIMEOUT` |
+| `DB_STATEMENT_TIMEOUT` | `HTTP_REQUEST_TIMEOUT` | Postgres `statement_timeout` and `idle_in_transaction_session_timeout` on every API connection, so a runaway query or abandoned transaction can't hold a connection after the request has given up. At least `1ms`; overrides the same settings in `DATABASE_URL`. Migrations don't use it |
 
 ## Security
 
@@ -52,7 +53,7 @@ All configuration comes from environment variables. The server validates everyth
 | `CORS_MAX_AGE` | `10m` | How long browsers may cache a preflight, at most `24h` |
 | `BOT_CHECK` | `off` | `turnstile` makes sign-in code requests and adding a contact carry a Cloudflare Turnstile token in `X-Turnstile-Token`. Fails closed: if Turnstile can't be reached, no code is sent. Production warns at startup while it is `off` |
 | `TURNSTILE_SECRET_KEY` | empty | The widget's secret key. Required with `turnstile`. Cloudflare's test keys (`1x…`, `2x…`, `3x…`) are refused in production |
-| `BOT_CHECK_TIMEOUT` | `5s` | Limit on each Turnstile check. Shorter than `HTTP_REQUEST_TIMEOUT` |
+| `BOT_CHECK_TIMEOUT` | `5s` | Limit on each Turnstile check, and on the HTTP client even without a request deadline. Shorter than `HTTP_REQUEST_TIMEOUT` |
 | `FINGERPRINT_SECRET` | required | At least 32 characters. Generate with `openssl rand -hex 32`. The example placeholder is rejected in production |
 
 ## Auth (SuperTokens)
@@ -100,7 +101,7 @@ Leave `OIDC_ISSUER` empty to disable admin sign-in.
 | `TERMII_API_KEY` | empty | Required with `termii` |
 | `TERMII_BASE_URL` | empty | Your account's API base URL from the Termii dashboard, https. Required with `termii` |
 | `TERMII_CHANNEL` | `dnd` | `dnd` reaches numbers on Do-Not-Disturb and must be enabled by Termii support; `generic` is for promotions and is refused in production |
-| `DELIVERY_TIMEOUT` | `10s` | Limit on each email or SMS send. Shorter than `HTTP_REQUEST_TIMEOUT` |
+| `DELIVERY_TIMEOUT` | `10s` | Limit on each email or SMS send, and on the provider HTTP clients even without a request deadline. Shorter than `HTTP_REQUEST_TIMEOUT` |
 
 ## Phone numbers
 

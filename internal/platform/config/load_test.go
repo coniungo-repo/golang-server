@@ -104,6 +104,8 @@ func TestLoadRejects(t *testing.T) {
 		{"pool overflow", map[string]string{"DB_MAX_CONNS": "99999999999"}, "DB_MAX_CONNS"},
 		{"short secret", map[string]string{"FINGERPRINT_SECRET": "short"}, "FINGERPRINT_SECRET"},
 		{"request timeout too long", map[string]string{"HTTP_REQUEST_TIMEOUT": "40s"}, "HTTP_REQUEST_TIMEOUT"},
+		{"forwarded-for client ip header", map[string]string{"HTTP_CLIENT_IP_HEADER": "x-forwarded-for"}, "HTTP_CLIENT_IP_HEADER"},
+		{"forwarded client ip header", map[string]string{"HTTP_CLIENT_IP_HEADER": "Forwarded"}, "HTTP_CLIENT_IP_HEADER"},
 		{"drain too long", map[string]string{"HTTP_DRAIN_DELAY": "20s"}, "HTTP_DRAIN_DELAY"},
 		{"prod sslmode require", map[string]string{"APP_ENV": "production", "DATABASE_URL": strings.Replace(prodURL, "verify-full", "require", 1)}, "verify-full"},
 		{"prod keyword dsn without tls", map[string]string{"APP_ENV": "production", "DATABASE_URL": "host=db.example.com user=u dbname=db sslmode=disable"}, "verify-full"},
@@ -136,6 +138,8 @@ func TestLoadRejects(t *testing.T) {
 		{"core timeout zero", map[string]string{"SUPERTOKENS_TIMEOUT": "0s"}, "SUPERTOKENS_TIMEOUT"},
 		{"header limit too small", map[string]string{"HTTP_MAX_HEADER_BYTES": "100"}, "HTTP_MAX_HEADER_BYTES"},
 		{"delivery timeout too long", map[string]string{"DELIVERY_TIMEOUT": "25s"}, "DELIVERY_TIMEOUT"},
+		{"statement timeout zero", map[string]string{"DB_STATEMENT_TIMEOUT": "0s"}, "DB_STATEMENT_TIMEOUT"},
+		{"statement timeout under a millisecond", map[string]string{"DB_STATEMENT_TIMEOUT": "500us"}, "DB_STATEMENT_TIMEOUT"},
 		{"ready timeout too long", map[string]string{"DB_READY_TIMEOUT": "1m"}, "DB_READY_TIMEOUT"},
 		{"cors max age too long", map[string]string{"CORS_MAX_AGE": "48h"}, "CORS_MAX_AGE"},
 		{"postmark without token", map[string]string{"EMAIL_PROVIDER": "postmark", "EMAIL_FROM": "a@b.co"}, "POSTMARK_SERVER_TOKEN: is required"},
@@ -256,19 +260,21 @@ func TestTunables(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.Server.MaxHeaderBytes != 64<<10 || cfg.Database.ConnectTimeout != 5*time.Second || cfg.Database.HealthCheckPeriod != time.Minute ||
-		cfg.Database.ReadyTimeout != 2*time.Second || cfg.CORS.MaxAge != 10*time.Minute || cfg.Delivery.Timeout != 10*time.Second {
+		cfg.Database.ReadyTimeout != 2*time.Second || cfg.CORS.MaxAge != 10*time.Minute || cfg.Delivery.Timeout != 10*time.Second ||
+		cfg.Database.StatementTimeout != cfg.Server.RequestTimeout {
 		t.Fatalf("unexpected defaults: server %+v db %+v cors %+v delivery %+v", cfg.Server, cfg.Database, cfg.CORS, cfg.Delivery)
 	}
 
 	cfg, err = LoadFrom(env(map[string]string{
 		"HTTP_MAX_HEADER_BYTES": "32768", "DB_CONNECT_TIMEOUT": "3s", "DB_HEALTH_CHECK_PERIOD": "30s",
-		"DB_READY_TIMEOUT": "1s", "CORS_MAX_AGE": "1h", "DELIVERY_TIMEOUT": "8s",
+		"DB_READY_TIMEOUT": "1s", "CORS_MAX_AGE": "1h", "DELIVERY_TIMEOUT": "8s", "DB_STATEMENT_TIMEOUT": "45s",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Server.MaxHeaderBytes != 32768 || cfg.Database.ConnectTimeout != 3*time.Second || cfg.Database.HealthCheckPeriod != 30*time.Second ||
-		cfg.Database.ReadyTimeout != time.Second || cfg.CORS.MaxAge != time.Hour || cfg.Delivery.Timeout != 8*time.Second {
+		cfg.Database.ReadyTimeout != time.Second || cfg.CORS.MaxAge != time.Hour || cfg.Delivery.Timeout != 8*time.Second ||
+		cfg.Database.StatementTimeout != 45*time.Second {
 		t.Fatalf("overrides not applied: server %+v db %+v cors %+v delivery %+v", cfg.Server, cfg.Database, cfg.CORS, cfg.Delivery)
 	}
 }

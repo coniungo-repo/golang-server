@@ -114,6 +114,8 @@ The verify call marks its SuperTokens user context so the sign-in override does 
 - `DELETE /api/v1/me` deletes the signed-in user.
 - `DELETE /api/v1/admin/users/{id}` (permission `users:delete`) deletes someone else and writes `user.deleted` to `admin_audit_log`. Admins can't delete themselves there.
 
+Deleting an admin also revokes the invite they accepted, in the same transaction, and logs `admin.invite.revoked`. An accepted invite is never reusable, even after its user is gone, so a deleted admin's next Google sign-in is refused until someone invites their email again, which then creates a fresh account.
+
 Tables that reference `users.id` must say what happens on delete: `ON DELETE CASCADE` for data that belongs to the user, `ON DELETE SET NULL` for records that must outlive them.
 
 ## Admin sign-in
@@ -141,7 +143,7 @@ make admin-invite email=you@coniungolabs.com
 
 In production, run `/admin invite you@coniungolabs.com` from the image with the production environment. After that, admins invite each other in the admin app.
 
-To offboard: suspend the person in Google, then revoke their invite in the admin app, which removes the role and signs them out everywhere. To bring someone back, invite their email again: their next Google sign-in accepts it and restores the role on their existing account.
+To offboard: suspend the person in Google, then revoke their invite in the admin app, which removes the role and signs them out everywhere. To bring someone back, invite their email again: their next Google sign-in accepts it and restores the role on their existing account. Deleting their user also closes the invite, but erases the account and blanks the actor on their past audit entries, so revoking is the usual way.
 
 ## Input rules
 

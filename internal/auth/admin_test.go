@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -50,6 +51,13 @@ func TestValidateAdminClaims(t *testing.T) {
 		if err := s.validateAdminClaims(c); !errors.Is(err, errAdminClaims) {
 			t.Errorf("%s: want errAdminClaims, got %v", name, err)
 		}
+	}
+}
+
+func TestAdminProviderRequestsOnlyNeededScopes(t *testing.T) {
+	got := adminService().thirdPartyConfig().SignInAndUpFeature.Providers[0].Config.Clients[0].Scope
+	if !slices.Equal(got, []string{"openid", "email"}) {
+		t.Fatalf("scopes %v, want only openid and email", got)
 	}
 }
 

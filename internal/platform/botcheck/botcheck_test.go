@@ -121,6 +121,20 @@ func TestTurnstileRespectsContext(t *testing.T) {
 	}
 }
 
+func TestTurnstileTimesOutWithoutDeadline(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	ts, _ := NewTurnstile(TurnstileConfig{Secret: testSecret, Endpoint: srv.URL, Timeout: 50 * time.Millisecond})
+	if err := ts.Verify(context.Background(), testToken, ""); err == nil || errors.Is(err, ErrFailed) {
+		t.Fatalf("a timeout must fail closed with a non-ErrFailed error, got %v", err)
+	}
+	if ts, _ := NewTurnstile(TurnstileConfig{Secret: testSecret}); ts.cfg.Client.Timeout != DefaultTimeout {
+		t.Fatalf("default client timeout %s, want %s", ts.cfg.Client.Timeout, DefaultTimeout)
+	}
+}
+
 func TestOffAcceptsEverything(t *testing.T) {
 	if err := (Off{}).Verify(context.Background(), "", ""); err != nil {
 		t.Fatal(err)
