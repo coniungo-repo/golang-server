@@ -1,3 +1,4 @@
+// Package request reads client input safely: strict JSON decoding with size, media type and unknown-field checks that turn mistakes into *Error values with a status and a user-safe message, and ClientIP for the caller's address behind a trusted proxy.
 package request
 
 import (

@@ -1,3 +1,4 @@
+// Package route groups handlers under a path prefix, so feature packages register patterns like "GET /me" and bootstrap mounts them under /api/v1.
 package route
 
 import (

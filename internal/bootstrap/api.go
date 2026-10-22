@@ -1,3 +1,4 @@
+// Package bootstrap assembles the API: it turns configuration into dependencies (database, auth, delivery, rate limiters, metrics), builds the router and middleware chain, and runs the server and its background jobs. It is the only package that knows how the others fit together; feature packages never import it.
 package bootstrap
 
 import (

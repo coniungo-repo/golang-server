@@ -1,3 +1,4 @@
+// Package requestid generates request IDs, validates ones received from a trusted proxy, and stores them on the context, so logs, error bodies and the X-Request-ID header all carry the same ID.
 package requestid
 
 import (

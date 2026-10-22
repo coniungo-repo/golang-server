@@ -1,3 +1,4 @@
+// Package respond writes JSON responses. Errors always use the {"message", "request_id"} shape; ServerError logs the cause and sends a generic message, mapping deadlines to 503 and client disconnects to 499.
 package respond
 
 import (

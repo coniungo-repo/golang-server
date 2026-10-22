@@ -1,3 +1,4 @@
+// Package database opens the pgx connection pool from config and verifies it with a ping before the server starts.
 package database
 
 import (

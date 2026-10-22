@@ -1,3 +1,4 @@
+// Package clock is an injectable time source, so code that depends on the time (rate limits, session ages, sign-in windows) can be tested with a Mock it moves by hand.
 package clock
 
 import (
