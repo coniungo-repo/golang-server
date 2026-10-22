@@ -4,7 +4,7 @@ HTTP API for Coniungo, written in Go with the standard library router and Postgr
 
 ## Requirements
 
-- Go 1.21 or later; it fetches the toolchain pinned in `go.mod` (currently go1.27.2) automatically
+- Go 1.21 or later; it fetches the toolchain pinned in `go.mod` (currently go1.27.3) automatically
 - Docker, for local Postgres and image builds
 
 ## Quick start
