@@ -1,4 +1,4 @@
-.PHONY: run dev test test-db admin-invite lint vuln check build docker db-up db-down migrate migrate-down migration generate deploy-staging deploy-production deploy-core-staging deploy-core-production
+.PHONY: run dev smoke test test-db admin-invite lint vuln check build docker db-up db-down migrate migrate-down migration generate deploy-staging deploy-production deploy-core-staging deploy-core-production
 
 ENV = if [ -f .env ]; then set -a; . ./.env; set +a; fi;
 COMPOSE = docker compose --env-file .env -f deploy/docker-compose.yml
@@ -10,6 +10,9 @@ run:
 
 dev:
 	@$(ENV) $(TOOL) air
+
+smoke:
+	@./scripts/smoke-local.sh
 
 test:
 	go test -race -count=1 ./...

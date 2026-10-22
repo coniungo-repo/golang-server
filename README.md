@@ -28,6 +28,7 @@ Open [localhost:8080/docs/](http://localhost:8080/docs/) to explore and call the
 | `make run` | Run once |
 | `make test` | Tests with the race detector |
 | `make test-db` | All tests, including Postgres and SuperTokens end-to-end ones, against your local stack |
+| `make smoke` | Starts a throwaway API on port 18080 and calls every route like a client would (sign-in by phone and email, contacts, sessions, limits, metrics, deletion), reading codes from its log. `SMOKE_BOT_CHECK=turnstile make smoke` also runs the Turnstile check with Cloudflare's test keys |
 | `make lint` | gofmt, go vet, staticcheck |
 | `make vuln` | govulncheck |
 | `make check` | lint, test and vuln, as CI runs them |
