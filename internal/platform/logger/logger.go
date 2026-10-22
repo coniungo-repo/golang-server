@@ -1,3 +1,4 @@
+// Package logger configures slog (JSON in production, text locally), redacts keys that look like credentials, and carries the request's logger on the context.
 package logger
 
 import (

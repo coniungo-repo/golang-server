@@ -1,3 +1,4 @@
+// Package health serves the liveness (/livez) and readiness (/readyz) probes. Readiness checks the database, shares one ping per second across callers, and fails as soon as shutdown begins so load balancers stop routing first.
 package health
 
 import (

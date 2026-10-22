@@ -1,3 +1,4 @@
+// Package middleware holds the HTTP middleware chain every request passes through: request IDs, logging, metrics, route labels, panic recovery, security headers, CORS and CSRF protection, per-IP rate limiting, body limits and request deadlines. The order is set in internal/bootstrap/router.go and described in docs/architecture.md.
 package middleware
 
 import (

@@ -1,3 +1,4 @@
+// Package config loads every setting from environment variables, applies defaults, and validates them all at startup, reporting every problem at once. Production-only rules (TLS to Postgres, no placeholder secrets, real providers) live here, so a misconfigured deploy refuses to start. Secret keeps credentials out of logs and JSON.
 package config
 
 import (

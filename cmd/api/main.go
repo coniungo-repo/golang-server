@@ -1,3 +1,4 @@
+// Command api runs the HTTP API: it loads configuration, connects its dependencies and serves until SIGINT or SIGTERM, then drains and shuts down. The work happens in internal/bootstrap.
 package main
 
 import (

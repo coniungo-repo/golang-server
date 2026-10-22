@@ -1,3 +1,4 @@
+// Package httpserver runs HTTP servers with the configured timeouts: the public API with graceful shutdown and drain, and internal servers such as metrics in the background.
 package httpserver
 
 import (

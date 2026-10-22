@@ -62,7 +62,8 @@ deploy                  local Docker Compose
 ## Documentation
 
 - [API reference](api/openapi.yaml), browsable at `/docs/` locally
-- [Architecture](docs/architecture.md)
+- [Architecture](docs/architecture.md): how the packages fit, the request chain, a feature-to-code map and the sign-in flows
+- Folder guides: [deploy](deploy/README.md), [migrations](migrations/README.md), [api](api/README.md)
 - [Auth](docs/auth.md)
 - [Configuration](docs/configuration.md)
 - [Operations](docs/operations.md)
