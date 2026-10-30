@@ -10,7 +10,7 @@ require (
 	github.com/nyaruka/phonenumbers v1.8.1
 	github.com/pressly/goose/v3 v3.29.0
 	github.com/prometheus/client_golang v1.25.0
-	github.com/supertokens/supertokens-golang v0.26.0
+	github.com/supertokens/supertokens-golang v0.26.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
