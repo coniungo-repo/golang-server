@@ -77,8 +77,8 @@ github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UV
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
-github.com/supertokens/supertokens-golang v0.26.0 h1:69A3Wngn5gBdL5mveF3iZNvFllA+ZfyVet1lX9I8mhk=
-github.com/supertokens/supertokens-golang v0.26.0/go.mod h1:EUNFkAgZH9VF+dxEMPKwfSFVzqnPkUQtfKa96+xQ1Bw=
+github.com/supertokens/supertokens-golang v0.26.1 h1:CWTBwqHYwDsDSmplwYAgx8uznnkcHJXkF1oMJI7Pw18=
+github.com/supertokens/supertokens-golang v0.26.1/go.mod h1:EUNFkAgZH9VF+dxEMPKwfSFVzqnPkUQtfKa96+xQ1Bw=
 github.com/twilio/twilio-go v0.26.0 h1:wFW4oTe3/LKt6bvByP7eio8JsjtaLHjMQKOUEzQry7U=
 github.com/twilio/twilio-go v0.26.0/go.mod h1:lz62Hopu4vicpQ056H5TJ0JE4AP0rS3sQ35/ejmgOwE=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
